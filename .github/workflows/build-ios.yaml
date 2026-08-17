@@ -33,7 +33,7 @@ jobs:
                      -scheme "Hungry Snake 4K" \
                      -configuration Release \
                      -sdk iphoneos \
-                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGN_IDENTITY="-" \
                      CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGNING_ALLOWED=NO \
                      clean build
