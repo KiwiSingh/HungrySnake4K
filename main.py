@@ -185,11 +185,12 @@ def handle_1():
         start_game(2)
 
 def handle_2():
+    global game_state  # <--- Move this to the very top!
+    
     if game_state == "MENU": 
         start_game(2)
     elif game_state == "REMATCH_PROMPT":
         game_over_sound.play()
-        global game_state
         game_state = "MENU"
         show_menu()
 

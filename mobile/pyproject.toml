@@ -5,6 +5,7 @@ name = "HungrySnake4K"
 version = "3.0.1"
 author = "Kiwi Singh"
 author_email = "kiwisingh@proton.me"
+license = "MIT"  # <--- Added to satisfy PEP 639
 
 [tool.briefcase.app.HungrySnake4K]
 formal_name = "Hungry Snake 4K"

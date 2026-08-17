@@ -19,7 +19,6 @@ def get_resource_path(relative_path):
         return Path(sys.executable).resolve().parent / relative_path
     return Path(__file__).resolve().parent / relative_path
 
-# Standard audio paths
 background_score_path = get_resource_path("assets/background_score.mp3")
 food_sound_path = get_resource_path("assets/food_blip.wav")
 game_over_sound_path = get_resource_path("assets/game_over.wav")
@@ -35,7 +34,6 @@ food_sound.set_volume(0.7)
 game_over_sound = pygame.mixer.Sound(str(game_over_sound_path))
 game_over_sound.set_volume(0.8)
 
-# Fallback audio loader for pending assets
 def load_placeholder_sound(filename, fallback_sound):
     filepath = get_resource_path(f"assets/{filename}")
     if os.path.exists(filepath):
@@ -48,6 +46,7 @@ player1_begin_sound = load_placeholder_sound("player1_begin.wav", food_sound)
 player2_begin_sound = load_placeholder_sound("player2_begin.wav", food_sound)
 player1_wins_sound = load_placeholder_sound("player1_wins.wav", game_over_sound)
 player2_wins_sound = load_placeholder_sound("player2_wins.wav", game_over_sound)
+its_a_draw_sound = load_placeholder_sound("its_a_draw.wav", game_over_sound)
 
 screen = Screen()
 screen.setup(width=0.9, height=0.9)
@@ -65,7 +64,6 @@ food = Food(X_LIMIT, Y_LIMIT)
 scoreboard = Scoreboard(Y_LIMIT - 40)
 controller = Controller()
 
-# Game State
 game_state = "MENU"
 multiplayer = False
 p1_score = 0
@@ -73,7 +71,15 @@ p2_score = 0
 current_level_points = 0
 points_to_next_level = 20
 
+def hide_snake():
+    for segment in snake.segments:
+        segment.goto(2000, 2000)
+        segment.hideturtle()
+    food.hideturtle()
+    food.goto(2000, 2000)
+
 def show_menu():
+    hide_snake()
     scoreboard.clear()
     scoreboard.show_message("HUNGRY SNAKE 4K", size=48, y_offset=60)
     scoreboard.show_message("Press 1 (or Circle/B) for Single Player", size=24, y_offset=0)
@@ -86,7 +92,6 @@ def start_game(num_players):
     p2_score = 0
     game_state = "P1_PLAY"
     
-    # Only play P1 begin sound in multiplayer
     if multiplayer:
         player1_begin_sound.play()
         
@@ -100,6 +105,7 @@ def reset_player_state():
     scoreboard.reset()
     background.randomize()
     snake.reset()
+    food.showturtle()
     food.refresh()
 
 def check_level_up():
@@ -113,6 +119,7 @@ def check_level_up():
 def end_turn():
     global game_state, p1_score, p2_score
     pygame.mixer.music.stop()
+    hide_snake()
 
     if game_state == "P1_PLAY":
         p1_score = scoreboard.score
@@ -128,10 +135,10 @@ def end_turn():
             display_results()
     elif game_state == "P2_PLAY":
         p2_score = scoreboard.score
-        game_state = "GAME_OVER"
         display_results()
 
 def display_results():
+    global game_state
     scoreboard.clear()
     channel = pygame.mixer.find_channel()
     
@@ -141,34 +148,51 @@ def display_results():
                 channel.play(player1_wins_sound)
                 if player1_wins_sound != game_over_sound:
                     channel.queue(game_over_sound)
+            game_state = "GAME_OVER"
             scoreboard.show_message("PLAYER 1 WINS!", size=48, y_offset=60)
+            scoreboard.show_message(f"P1: {p1_score}   P2: {p2_score}", size=24, y_offset=0)
+            scoreboard.show_message("Press ENTER (or any button) to return", size=24, y_offset=-50)
+            
         elif p2_score > p1_score:
             if channel:
                 channel.play(player2_wins_sound)
                 if player2_wins_sound != game_over_sound:
                     channel.queue(game_over_sound)
+            game_state = "GAME_OVER"
             scoreboard.show_message("PLAYER 2 WINS!", size=48, y_offset=60)
+            scoreboard.show_message(f"P1: {p1_score}   P2: {p2_score}", size=24, y_offset=0)
+            scoreboard.show_message("Press ENTER (or any button) to return", size=24, y_offset=-50)
+            
         else:
-            # Draw condition
             if channel:
-                channel.play(game_over_sound)
+                channel.play(its_a_draw_sound)
+            game_state = "REMATCH_PROMPT"
             scoreboard.show_message("IT'S A TIE!", size=48, y_offset=60)
-        scoreboard.show_message(f"P1: {p1_score}   P2: {p2_score}", size=24, y_offset=0)
+            scoreboard.show_message(f"Score: {p1_score}", size=24, y_offset=10)
+            scoreboard.show_message("Rematch? 1 (Yes)  |  2 (No)", size=24, y_offset=-40)
     else:
-        # Single Player game over
         if channel:
             channel.play(game_over_sound)
+        game_state = "GAME_OVER"
         scoreboard.show_message("GAME OVER", size=48, y_offset=60)
         scoreboard.show_message(f"Final Score: {p1_score}", size=24, y_offset=0)
-    
-    scoreboard.show_message("Press ENTER (or any button) to return", size=24, y_offset=-50)
+        scoreboard.show_message("Press ENTER (or any button) to return", size=24, y_offset=-50)
 
-# Keyboard bindings
 def handle_1():
-    if game_state == "MENU": start_game(1)
+    if game_state == "MENU": 
+        start_game(1)
+    elif game_state == "REMATCH_PROMPT":
+        start_game(2)
 
 def handle_2():
-    if game_state == "MENU": start_game(2)
+    global game_state  # <--- Move this to the very top!
+    
+    if game_state == "MENU": 
+        start_game(2)
+    elif game_state == "REMATCH_PROMPT":
+        game_over_sound.play()
+        game_state = "MENU"
+        show_menu()
 
 def handle_enter(event=None):
     global game_state
@@ -224,14 +248,19 @@ def game_loop():
             if snake.head.distance(segment) < 10:
                 end_turn()
     else:
-        # Menus and Transitions (Controller mapping)
         if game_state == "MENU":
-            if 1 in pressed_buttons:     # Button 1: Circle (DualSense) / B (XInput)
+            if 1 in pressed_buttons:
                 start_game(1)
-            elif 0 in pressed_buttons:   # Button 0: Cross (DualSense) / A (XInput)
+            elif 0 in pressed_buttons:
                 start_game(2)
+        elif game_state == "REMATCH_PROMPT":
+            if 1 in pressed_buttons:
+                start_game(2)
+            elif 0 in pressed_buttons:
+                game_over_sound.play()
+                handle_enter() # Triggers transition to menu
         elif game_state in ["P2_TRANSITION", "GAME_OVER"]:
-            if any(pressed_buttons):     # Pressing any button advances the screen
+            if any(pressed_buttons):
                 handle_enter()
 
     screen.update()
