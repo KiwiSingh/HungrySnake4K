@@ -1,0 +1,9 @@
+# GitHub files
+.git/
+
+# Virtual environment and related
+.venv/
+.idea/
+
+# Build and distribution directories
+*.egg-info/
