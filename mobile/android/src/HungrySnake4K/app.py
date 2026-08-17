@@ -6,6 +6,13 @@ import random
 import asyncio
 import traceback
 
+# Wrap pygame in a try-except to prevent fatal crashes if mobile compilation fails
+try:
+    import pygame
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+
 class HungrySnake4K(toga.App):
     def startup(self):
         # Game Settings
@@ -28,6 +35,10 @@ class HungrySnake4K(toga.App):
         self.food_pos = (0, 0)
         self.food_color = "white"
         self.touch_start = None
+        
+        # Asset Initialization
+        self.init_audio()
+        self.init_backgrounds()
 
         # Setup Canvas and Main Window
         self.canvas = toga.Canvas(
@@ -44,6 +55,60 @@ class HungrySnake4K(toga.App):
 
         # Start the non-blocking game loop
         self.add_background_task(self.game_loop)
+        
+    def init_audio(self):
+        self.audio = {}
+        if not PYGAME_AVAILABLE:
+            return
+            
+        try:
+            pygame.mixer.init()
+            pygame.mixer.set_num_channels(8)
+            
+            # Load Background Score
+            bg_score_path = self.paths.app / "assets" / "background_score.mp3"
+            if bg_score_path.exists():
+                pygame.mixer.music.load(str(bg_score_path))
+                pygame.mixer.music.set_volume(0.4)
+                
+            # Load SFX
+            sfx_files = {
+                "food_blip": "food_blip.wav",
+                "game_over": "game_over.wav",
+                "player1_begin": "player1_begin.wav",
+                "player2_begin": "player2_begin.wav",
+                "player1_wins": "player1_wins.wav",
+                "player2_wins": "player2_wins.wav",
+                "its_a_draw": "its_a_draw.wav"
+            }
+            
+            for key, filename in sfx_files.items():
+                path = self.paths.app / "assets" / filename
+                if path.exists():
+                    snd = pygame.mixer.Sound(str(path))
+                    snd.set_volume(0.8)
+                    self.audio[key] = snd
+                    
+        except Exception as e:
+            print(f"Audio initialization failed: {e}")
+
+    def init_backgrounds(self):
+        self.backgrounds = []
+        self.current_bg = None
+        
+        for i in range(1, 11):
+            filename = f"background_{i:02}.png"
+            path = self.paths.app / "assets" / "backgrounds" / filename
+            if path.exists():
+                self.backgrounds.append(toga.Image(path))
+                
+    def play_sound(self, sound_key):
+        if PYGAME_AVAILABLE and sound_key in self.audio:
+            self.audio[sound_key].play()
+
+    def randomize_background(self):
+        if self.backgrounds:
+            self.current_bg = random.choice(self.backgrounds)
 
     def on_resize(self, widget, width, height, **kwargs):
         self.canvas_width = width
@@ -54,11 +119,14 @@ class HungrySnake4K(toga.App):
         center_x = (self.canvas_width // 2 // self.grid_size) * self.grid_size
         center_y = (self.canvas_height // 2 // self.grid_size) * self.grid_size
         self.snake = [(center_x - i * self.grid_size, center_y) for i in range(3)]
+        
         self.snake_dir = (1, 0)
         self.current_score = 0
         self.current_level_points = 0
         self.points_to_next_level = 20
         self.level = 1
+        
+        self.randomize_background()
         self.spawn_food()
 
     def spawn_food(self):
@@ -79,11 +147,16 @@ class HungrySnake4K(toga.App):
             self.food_color = random.choice(["white", "red", "green", "blue", "cyan", "magenta", "yellow"])
 
     def trigger_game_over(self, crashed_player):
+        if PYGAME_AVAILABLE:
+            pygame.mixer.music.stop()
+        
         if crashed_player == 1:
             self.p1_score = self.current_score
             if self.multiplayer:
+                self.play_sound("game_over")
                 self.state = "P2_TRANSITION"
             else:
+                self.play_sound("game_over")
                 self.state = "GAME_OVER"
         else:
             self.p2_score = self.current_score
@@ -91,10 +164,13 @@ class HungrySnake4K(toga.App):
 
     def evaluate_winner(self):
         if self.p1_score > self.p2_score:
+            self.play_sound("player1_wins")
             self.state = "GAME_OVER"
         elif self.p2_score > self.p1_score:
+            self.play_sound("player2_wins")
             self.state = "GAME_OVER"
         else:
+            self.play_sound("its_a_draw")
             self.state = "REMATCH_PROMPT"
 
     # --- Touch Input Handling ---
@@ -109,7 +185,6 @@ class HungrySnake4K(toga.App):
         dy = y - self.touch_start[1]
         
         if self.state in ["P1_PLAY", "P2_PLAY"]:
-            # Swipe detection threshold
             if abs(dx) > 30 or abs(dy) > 30:
                 if abs(dx) > abs(dy):
                     if dx > 0 and self.snake_dir != (-1, 0): self.snake_dir = (1, 0)
@@ -118,7 +193,6 @@ class HungrySnake4K(toga.App):
                     if dy > 0 and self.snake_dir != (0, -1): self.snake_dir = (0, 1)
                     elif dy < 0 and self.snake_dir != (0, 1): self.snake_dir = (0, -1)
         else:
-            # Menu Tap detection
             self.handle_menu_tap(y)
 
         self.touch_start = None
@@ -128,51 +202,55 @@ class HungrySnake4K(toga.App):
 
         if self.state == "MENU":
             self.multiplayer = not top_half
+            self.play_sound("player1_begin")
+            if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
             self.reset_player()
             self.state = "P1_PLAY"
             
         elif self.state == "REMATCH_PROMPT":
             if top_half:
+                self.play_sound("player1_begin")
+                if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
                 self.reset_player()
                 self.state = "P1_PLAY"
             else:
+                self.play_sound("game_over")
                 self.state = "MENU"
                 
-        elif self.state in ["P2_TRANSITION", "GAME_OVER"]:
-            if self.state == "P2_TRANSITION":
-                self.reset_player()
-                self.state = "P2_PLAY"
-            else:
-                self.state = "MENU"
+        elif self.state == "P2_TRANSITION":
+            self.play_sound("player2_begin")
+            if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+            self.reset_player()
+            self.state = "P2_PLAY"
+            
+        elif self.state == "GAME_OVER":
+            self.state = "MENU"
 
     # --- Game Loop (15 FPS equivalent) ---
     async def game_loop(self, widget, **kwargs):
         while True:
-            await asyncio.sleep(0.08) # Game tick speed
+            await asyncio.sleep(0.08)
 
-            # Background tasks fail silently in Toga - without this try/except,
-            # any exception in here would kill the loop with no visible error
-            # (this is exactly what caused the earlier black-screen bug).
             try:
                 if self.state in ["P1_PLAY", "P2_PLAY"]:
                     head_x, head_y = self.snake[0]
-                    new_head = (head_x + self.snake_dir[0] * self.grid_size,
-                                head_y + self.snake_dir[1] * self.grid_size)
+                    new_head = (
+                        head_x + self.snake_dir[0] * self.grid_size,
+                        head_y + self.snake_dir[1] * self.grid_size
+                    )
 
-                    # Wall Collision
                     if (new_head[0] < 0 or new_head[0] >= self.canvas_width or
                         new_head[1] < 0 or new_head[1] >= self.canvas_height):
                         self.trigger_game_over(1 if self.state == "P1_PLAY" else 2)
-                    # Tail Collision
                     elif new_head in self.snake:
                         self.trigger_game_over(1 if self.state == "P1_PLAY" else 2)
                     else:
                         self.snake.insert(0, new_head)
 
-                        # Food Collision
                         if (abs(new_head[0] - self.food_pos[0]) < self.grid_size and
                             abs(new_head[1] - self.food_pos[1]) < self.grid_size):
 
+                            self.play_sound("food_blip")
                             pts = 10 if self.food_color == "gold" else 5 if self.food_color == "silver" else 1
                             self.current_score += pts
                             self.current_level_points += pts
@@ -181,6 +259,7 @@ class HungrySnake4K(toga.App):
                                 self.level += 1
                                 self.points_to_next_level = (self.level + 1) * 10
                                 self.current_level_points = 0
+                                self.randomize_background() 
 
                             self.spawn_food()
                         else:
@@ -188,33 +267,30 @@ class HungrySnake4K(toga.App):
 
                 self.redraw()
             except Exception:
-                # Prints to the Simulator/Xcode console so failures are visible
-                # instead of silently freezing the screen.
                 traceback.print_exc()
 
-    # --- Rendering logic using Toga Canvas ---
+    # --- Rendering logic ---
     def redraw(self):
         self.canvas.clear()
 
-        # Background
-        with self.canvas.fill(color="black"):
-            self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+        if self.state in ["P1_PLAY", "P2_PLAY"] and self.current_bg:
+            self.canvas.draw_image(self.current_bg, x=0, y=0, width=self.canvas_width, height=self.canvas_height)
+        else:
+            with self.canvas.fill(color="black"):
+                self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
         if self.state in ["P1_PLAY", "P2_PLAY"]:
-            # Draw Food
             with self.canvas.fill(color=self.food_color):
                 self.canvas.rect(self.food_pos[0], self.food_pos[1], self.grid_size, self.grid_size)
 
-            # Draw Snake
             with self.canvas.fill(color="white"):
                 for segment in self.snake:
                     self.canvas.rect(segment[0], segment[1], self.grid_size - 2, self.grid_size - 2)
 
-            # Scoreboard
             self.canvas.fill_text(
                 f"Level: {self.level}   Score: {self.current_score}",
                 x=20, y=30,
-                font=toga.Font(family="monospace", size=20),
+                font=toga.Font(family="monospace", size=20, weight="bold"),
                 baseline=Baseline.TOP,
             )
 
@@ -252,7 +328,6 @@ class HungrySnake4K(toga.App):
         self.draw_centered_text(bottom_text, "rgb(200,200,200)", 16, self.canvas_height / 4)
 
     def draw_centered_text(self, text, color, size, y_offset):
-        # Rough centering math for monospace fonts
         approx_char_width = size * 0.6
         text_width = len(text) * approx_char_width
         x = max(0, (self.canvas_width - text_width) / 2)
@@ -263,7 +338,6 @@ class HungrySnake4K(toga.App):
             font=toga.Font(family="monospace", size=size, weight="bold"),
             baseline=Baseline.MIDDLE,
         )
-
 
 def main():
     return HungrySnake4K()
