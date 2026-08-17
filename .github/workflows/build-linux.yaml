@@ -44,11 +44,11 @@ jobs:
 
       - name: Package Linux release
         run: |
-          mkdir -p "release/HungrySnake4K-2.0.2-linux-x86_64"
-          cp "dist/Hungry Snake 4K" "release/HungrySnake4K-2.0.2-linux-x86_64/"
-          chmod +x "release/HungrySnake4K-2.0.2-linux-x86_64/Hungry Snake 4K"
-          printf "2.0.2\n" > "release/HungrySnake4K-2.0.2-linux-x86_64/VERSION"
-          tar -C release -czf "HungrySnake4K-2.0.2-linux-x86_64.tar.gz" "HungrySnake4K-2.0.2-linux-x86_64"
+          mkdir -p "release/HungrySnake4K-3.0.0-linux-x86_64"
+          cp "dist/Hungry Snake 4K" "release/HungrySnake4K-3.0.0-linux-x86_64/"
+          chmod +x "release/HungrySnake4K-3.0.0-linux-x86_64/Hungry Snake 4K"
+          printf "3.0.0\n" > "release/HungrySnake4K-3.0.0-linux-x86_64/VERSION"
+          tar -C release -czf "HungrySnake4K-3.0.0-linux-x86_64.tar.gz" "HungrySnake4K-3.0.0-linux-x86_64"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
