@@ -53,5 +53,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HungrySnake4K-2.0.2-linux-x86_64
-          path: HungrySnake4K-2.0.2-linux-x86_64.tar.gz
+          name: HungrySnake4K-3.0.0-linux-x86_64
+          path: HungrySnake4K-3.0.0-linux-x86_64.tar.gz
