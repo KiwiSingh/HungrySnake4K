@@ -6,6 +6,7 @@ from toga.constants import Baseline
 import random
 import asyncio
 import traceback
+import os
 
 # Wrap pygame so mobile apps still launch even though Pygame isn't installed
 try:
@@ -24,8 +25,20 @@ class HungrySnake4K(toga.App):
         else:
             self.platform = 'desktop'
 
+        # --- Debug log file ---
+        self.log_path = self.paths.data / "debug.log"
+        # Clear previous log
+        try:
+            with open(self.log_path, "w") as f:
+                f.write("=== App started ===\n")
+        except:
+            pass
+
+        self.log("Startup: platform = " + self.platform)
+
         # Game Settings
         self.grid_size = 40
+        # Set fallback dimensions (will be updated on resize)
         self.canvas_width = 400
         self.canvas_height = 800
         
@@ -51,19 +64,43 @@ class HungrySnake4K(toga.App):
 
         # Setup Canvas and Main Window
         self.canvas = toga.Canvas(
-            style=Pack(flex=1),
+            style=Pack(flex=1, background_color="black"),  # opaque canvas
             on_resize=self.on_resize,
             on_press=self.on_touch_down,
             on_release=self.on_touch_up,
         )
 
-        box = toga.Box(children=[self.canvas], style=Pack(direction=COLUMN, flex=1))
+        # --- Debug label (will show state and dimensions) ---
+        self.debug_label = toga.Label(
+            "Initializing...",
+            style=Pack(padding=10, color="white", background_color="black", font_size=12)
+        )
+
+        box = toga.Box(children=[self.canvas, self.debug_label], style=Pack(direction=COLUMN, flex=1))
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = box
         self.main_window.show()
 
+        # Force an initial draw and resize event
+        self.log("Calling redraw() after window show")
+        self.redraw()
+
+        # Start the game loop explicitly with asyncio.create_task
+        self.log("Creating game loop task")
+        asyncio.create_task(self.game_loop(None))
+        # Also keep the Toga background task as a fallback (it will be a no‑op if already running)
         self.add_background_task(self.game_loop)
+
+        self.log("Startup complete")
         
+    def log(self, msg):
+        """Write a message to the debug log file."""
+        try:
+            with open(self.log_path, "a") as f:
+                f.write(f"{msg}\n")
+        except:
+            pass
+
     def init_audio(self):
         self.audio_players = {}
         self.bg_player = None
@@ -78,39 +115,45 @@ class HungrySnake4K(toga.App):
             "its_a_draw": "its_a_draw.wav"
         }
 
-        if self.platform == 'ios':
-            from rubicon.objc import ObjCClass
-            from ctypes import cdll
-            from ctypes.util import find_library
-            
-            cdll.LoadLibrary(find_library('AVFoundation'))
-            AVAudioPlayer = ObjCClass('AVAudioPlayer')
-            NSURL = ObjCClass('NSURL')
+        try:
+            if self.platform == 'ios':
+                from rubicon.objc import ObjCClass
+                from ctypes import cdll
+                from ctypes.util import find_library
+                
+                cdll.LoadLibrary(find_library('AVFoundation'))
+                AVAudioPlayer = ObjCClass('AVAudioPlayer')
+                NSURL = ObjCClass('NSURL')
 
-            bg_path = self.paths.app / "assets" / "background_score.mp3"
-            if bg_path.exists():
-                url = NSURL.fileURLWithPath_(str(bg_path))
-                self.bg_player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
-                if self.bg_player:
-                    self.bg_player.numberOfLoops = -1
-                    self.bg_player.volume = 0.4
-                    self.bg_player.prepareToPlay()
+                bg_path = self.paths.app / "assets" / "background_score.mp3"
+                if bg_path.exists():
+                    url = NSURL.fileURLWithPath_(str(bg_path))
+                    self.bg_player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
+                    if self.bg_player:
+                        self.bg_player.numberOfLoops = -1
+                        self.bg_player.volume = 0.4
+                        self.bg_player.prepareToPlay()
+                        self.log("iOS bg player created")
+                else:
+                    self.log("iOS bg file missing: " + str(bg_path))
 
-            for key, filename in sfx_files.items():
-                path = self.paths.app / "assets" / filename
-                if path.exists():
-                    url = NSURL.fileURLWithPath_(str(path))
-                    player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
-                    if player:
-                        player.volume = 0.8
-                        player.prepareToPlay()
-                        self.audio_players[key] = player
+                for key, filename in sfx_files.items():
+                    path = self.paths.app / "assets" / filename
+                    if path.exists():
+                        url = NSURL.fileURLWithPath_(str(path))
+                        player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
+                        if player:
+                            player.volume = 0.8
+                            player.prepareToPlay()
+                            self.audio_players[key] = player
+                            self.log(f"iOS SFX loaded: {key}")
+                    else:
+                        self.log(f"iOS SFX missing: {key}")
 
-        elif self.platform == 'android':
-            from java import jclass
-            MediaPlayer = jclass('android.media.MediaPlayer')
-            
-            try:
+            elif self.platform == 'android':
+                from java import jclass
+                MediaPlayer = jclass('android.media.MediaPlayer')
+                
                 bg_path = self.paths.app / "assets" / "background_score.mp3"
                 if bg_path.exists():
                     self.bg_player = MediaPlayer()
@@ -118,6 +161,7 @@ class HungrySnake4K(toga.App):
                     self.bg_player.setLooping(True)
                     self.bg_player.setVolume(0.4, 0.4)
                     self.bg_player.prepare()
+                    self.log("Android bg player created")
 
                 for key, filename in sfx_files.items():
                     path = self.paths.app / "assets" / filename
@@ -127,60 +171,74 @@ class HungrySnake4K(toga.App):
                         player.setVolume(0.8, 0.8)
                         player.prepare()
                         self.audio_players[key] = player
-            except Exception as e:
-                print(f"Android Audio Exception: {e}")
+                        self.log(f"Android SFX loaded: {key}")
 
-        else:
-            if not PYGAME_AVAILABLE:
-                return
-            try:
-                pygame.mixer.init()
-                pygame.mixer.set_num_channels(8)
-                
-                bg_path = self.paths.app / "assets" / "background_score.mp3"
-                if bg_path.exists():
-                    pygame.mixer.music.load(str(bg_path))
-                    pygame.mixer.music.set_volume(0.4)
+            else:
+                if not PYGAME_AVAILABLE:
+                    self.log("Pygame not available, skipping audio")
+                    return
+                try:
+                    pygame.mixer.init()
+                    pygame.mixer.set_num_channels(8)
+                    
+                    bg_path = self.paths.app / "assets" / "background_score.mp3"
+                    if bg_path.exists():
+                        pygame.mixer.music.load(str(bg_path))
+                        pygame.mixer.music.set_volume(0.4)
+                        self.log("Desktop bg loaded")
 
-                for key, filename in sfx_files.items():
-                    path = self.paths.app / "assets" / filename
-                    if path.exists():
-                        snd = pygame.mixer.Sound(str(path))
-                        snd.set_volume(0.8)
-                        self.audio_players[key] = snd
-            except Exception as e:
-                print(f"Pygame audio failed: {e}")
+                    for key, filename in sfx_files.items():
+                        path = self.paths.app / "assets" / filename
+                        if path.exists():
+                            snd = pygame.mixer.Sound(str(path))
+                            snd.set_volume(0.8)
+                            self.audio_players[key] = snd
+                            self.log(f"Desktop SFX loaded: {key}")
+                except Exception as e:
+                    self.log(f"Pygame audio failed: {e}")
+        except Exception as e:
+            self.log(f"init_audio exception: {e}")
+            traceback.print_exc()
 
     def play_sound(self, sound_key):
-        if self.platform == 'ios':
-            if sound_key in self.audio_players:
-                player = self.audio_players[sound_key]
-                player.currentTime = 0 
-                player.play()
-        elif self.platform == 'android':
-            if sound_key in self.audio_players:
-                player = self.audio_players[sound_key]
-                player.seekTo(0)
-                player.start()
-        else:
-            if PYGAME_AVAILABLE and sound_key in self.audio_players:
-                self.audio_players[sound_key].play()
+        try:
+            if self.platform == 'ios':
+                if sound_key in self.audio_players:
+                    player = self.audio_players[sound_key]
+                    player.currentTime = 0 
+                    player.play()
+            elif self.platform == 'android':
+                if sound_key in self.audio_players:
+                    player = self.audio_players[sound_key]
+                    player.seekTo(0)
+                    player.start()
+            else:
+                if PYGAME_AVAILABLE and sound_key in self.audio_players:
+                    self.audio_players[sound_key].play()
+        except Exception as e:
+            self.log(f"play_sound error: {e}")
 
     def play_bgm(self):
-        if self.platform == 'ios':
-            if self.bg_player: self.bg_player.play()
-        elif self.platform == 'android':
-            if self.bg_player: self.bg_player.start()
-        else:
-            if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+        try:
+            if self.platform == 'ios':
+                if self.bg_player: self.bg_player.play()
+            elif self.platform == 'android':
+                if self.bg_player: self.bg_player.start()
+            else:
+                if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+        except Exception as e:
+            self.log(f"play_bgm error: {e}")
 
     def stop_bgm(self):
-        if self.platform == 'ios':
-            if self.bg_player: self.bg_player.stop()
-        elif self.platform == 'android':
-            if self.bg_player: self.bg_player.pause()
-        else:
-            if PYGAME_AVAILABLE: pygame.mixer.music.stop()
+        try:
+            if self.platform == 'ios':
+                if self.bg_player: self.bg_player.stop()
+            elif self.platform == 'android':
+                if self.bg_player: self.bg_player.pause()
+            else:
+                if PYGAME_AVAILABLE: pygame.mixer.music.stop()
+        except Exception as e:
+            self.log(f"stop_bgm error: {e}")
 
     def init_backgrounds(self):
         self.backgrounds = []
@@ -190,15 +248,23 @@ class HungrySnake4K(toga.App):
             filename = f"background_{i:02}.png"
             path = self.paths.app / "assets" / "backgrounds" / filename
             if path.exists():
-                self.backgrounds.append(toga.Image(path))
+                try:
+                    self.backgrounds.append(toga.Image(path))
+                    self.log(f"Loaded bg {i}")
+                except Exception as e:
+                    self.log(f"Failed to load bg {i}: {e}")
+            else:
+                self.log(f"BG file missing: {path}")
                 
     def randomize_background(self):
         if self.backgrounds:
             self.current_bg = random.choice(self.backgrounds)
+            self.log("Randomized background")
 
     def on_resize(self, widget, width, height, **kwargs):
         self.canvas_width = width
         self.canvas_height = height
+        self.log(f"Resize: {width}x{height}")
         self.redraw()
 
     def reset_player(self):
@@ -214,6 +280,7 @@ class HungrySnake4K(toga.App):
         
         self.randomize_background()
         self.spawn_food()
+        self.log("Player reset")
 
     def spawn_food(self):
         max_x = max(1, int(self.canvas_width // self.grid_size) - 2)
@@ -231,6 +298,7 @@ class HungrySnake4K(toga.App):
             self.food_color = random.choice(["gold", "silver"])
         else:
             self.food_color = random.choice(["white", "red", "green", "blue", "cyan", "magenta", "yellow"])
+        self.log(f"Food spawned at {self.food_pos} color {self.food_color}")
 
     def trigger_game_over(self, crashed_player):
         self.stop_bgm()
@@ -246,6 +314,7 @@ class HungrySnake4K(toga.App):
         else:
             self.p2_score = self.current_score
             self.evaluate_winner()
+        self.log(f"Game over, player {crashed_player}, state {self.state}")
 
     def evaluate_winner(self):
         if self.p1_score > self.p2_score:
@@ -257,6 +326,7 @@ class HungrySnake4K(toga.App):
         else:
             self.play_sound("its_a_draw")
             self.state = "REMATCH_PROMPT"
+        self.log(f"Winner evaluated, state {self.state}")
 
     # --- Touch Input Handling ---
     def on_touch_down(self, widget, x, y, **kwargs):
@@ -291,6 +361,7 @@ class HungrySnake4K(toga.App):
             self.play_bgm()
             self.reset_player()
             self.state = "P1_PLAY"
+            self.log("Start game, multiplayer=" + str(self.multiplayer))
             
         elif self.state == "REMATCH_PROMPT":
             if top_half:
@@ -313,8 +384,13 @@ class HungrySnake4K(toga.App):
 
     # --- Game Loop (15 FPS equivalent) ---
     async def game_loop(self, widget, **kwargs):
+        self.log("game_loop started")
+        loop_count = 0
         while True:
             await asyncio.sleep(0.08)
+            loop_count += 1
+            if loop_count % 100 == 0:
+                self.log(f"Loop alive, count {loop_count}")
 
             try:
                 if self.state in ["P1_PLAY", "P2_PLAY"]:
@@ -352,56 +428,101 @@ class HungrySnake4K(toga.App):
 
                 self.redraw()
             except Exception:
+                self.log("Exception in game_loop:")
+                self.log(traceback.format_exc())
                 traceback.print_exc()
 
     # --- Rendering logic ---
     def redraw(self):
-        self.canvas.clear()
+        try:
+            # Update debug label with current info
+            self.debug_label.text = f"State:{self.state} W:{self.canvas_width} H:{self.canvas_height} Score:{self.current_score}"
 
-        if self.state in ["P1_PLAY", "P2_PLAY"] and self.current_bg:
-            self.canvas.draw_image(self.current_bg, x=0, y=0, width=self.canvas_width, height=self.canvas_height)
-        else:
-            with self.canvas.fill(color="black"):
-                self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+            self.canvas.clear()
 
-        if self.state in ["P1_PLAY", "P2_PLAY"]:
-            with self.canvas.fill(color=self.food_color):
-                self.canvas.rect(self.food_pos[0], self.food_pos[1], self.grid_size, self.grid_size)
+            # For debugging, if MENU state, draw a very simple blue screen with text
+            # to verify that the canvas and font work.
+            if self.state == "MENU":
+                with self.canvas.fill(color="blue"):
+                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+                # Use a simple system font
+                self.canvas.fill_text(
+                    "DEBUG MENU - TAP TOP/BOTTOM",
+                    x=20, y=100,
+                    font=toga.Font(family="system", size=20, weight="bold"),
+                    baseline=Baseline.TOP
+                )
+                self.canvas.fill_text(
+                    f"Dimensions: {self.canvas_width}x{self.canvas_height}",
+                    x=20, y=140,
+                    font=toga.Font(family="system", size=16),
+                    baseline=Baseline.TOP
+                )
+                # Also draw the tap zones (keep the original for later)
+                self.draw_tap_zones("TAP HERE FOR 1 PLAYER", "TAP HERE FOR 2 PLAYERS")
+                return
 
-            with self.canvas.fill(color="white"):
-                for segment in self.snake:
-                    self.canvas.rect(segment[0], segment[1], self.grid_size - 2, self.grid_size - 2)
-
-            self.canvas.fill_text(
-                f"Level: {self.level}   Score: {self.current_score}",
-                x=20, y=30,
-                font=toga.Font(family="monospace", size=20, weight="bold"),
-                baseline=Baseline.TOP,
-            )
-
-        elif self.state == "MENU":
-            self.draw_tap_zones("TAP HERE FOR 1 PLAYER", "TAP HERE FOR 2 PLAYERS")
-            self.draw_centered_text("HUNGRY SNAKE 4K", "red", 32, -100)
-
-        elif self.state == "REMATCH_PROMPT":
-            self.draw_tap_zones("TAP HERE FOR YES (REMATCH)", "TAP HERE FOR NO (MENU)")
-            self.draw_centered_text("IT'S A TIE!", "red", 32, -100)
-            self.draw_centered_text(f"Score: {self.p1_score}", "white", 20, -50)
-
-        elif self.state == "P2_TRANSITION":
-            self.draw_centered_text("PLAYER 1 CRASHED!", "red", 32, -100)
-            self.draw_centered_text(f"P1 Score: {self.p1_score}", "white", 20, -50)
-            self.draw_centered_text("TAP ANYWHERE FOR P2 TURN", "gray", 16, 100)
-
-        elif self.state == "GAME_OVER":
-            if self.multiplayer:
-                winner = "PLAYER 1 WINS!" if self.p1_score > self.p2_score else "PLAYER 2 WINS!"
-                self.draw_centered_text(winner, "red", 32, -100)
-                self.draw_centered_text(f"P1: {self.p1_score}   P2: {self.p2_score}", "white", 20, -50)
+            # Normal rendering for other states
+            if self.state in ["P1_PLAY", "P2_PLAY"] and self.current_bg:
+                self.canvas.draw_image(self.current_bg, x=0, y=0, width=self.canvas_width, height=self.canvas_height)
             else:
-                self.draw_centered_text("GAME OVER", "red", 32, -100)
-                self.draw_centered_text(f"Final Score: {self.p1_score}", "white", 20, -50)
-            self.draw_centered_text("TAP ANYWHERE TO RETURN", "gray", 16, 100)
+                with self.canvas.fill(color="black"):
+                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+
+            if self.state in ["P1_PLAY", "P2_PLAY"]:
+                with self.canvas.fill(color=self.food_color):
+                    self.canvas.rect(self.food_pos[0], self.food_pos[1], self.grid_size, self.grid_size)
+
+                with self.canvas.fill(color="white"):
+                    for segment in self.snake:
+                        self.canvas.rect(segment[0], segment[1], self.grid_size - 2, self.grid_size - 2)
+
+                self.canvas.fill_text(
+                    f"Level: {self.level}   Score: {self.current_score}",
+                    x=20, y=30,
+                    font=toga.Font(family="system", size=20, weight="bold"),
+                    baseline=Baseline.TOP,
+                )
+
+            elif self.state == "MENU":
+                # Keep the original menu drawing (after the debug override above)
+                # This part will be reached if we remove the early return above.
+                self.draw_tap_zones("TAP HERE FOR 1 PLAYER", "TAP HERE FOR 2 PLAYERS")
+                self.draw_centered_text("HUNGRY SNAKE 4K", "red", 32, -100)
+
+            elif self.state == "REMATCH_PROMPT":
+                self.draw_tap_zones("TAP HERE FOR YES (REMATCH)", "TAP HERE FOR NO (MENU)")
+                self.draw_centered_text("IT'S A TIE!", "red", 32, -100)
+                self.draw_centered_text(f"Score: {self.p1_score}", "white", 20, -50)
+
+            elif self.state == "P2_TRANSITION":
+                self.draw_centered_text("PLAYER 1 CRASHED!", "red", 32, -100)
+                self.draw_centered_text(f"P1 Score: {self.p1_score}", "white", 20, -50)
+                self.draw_centered_text("TAP ANYWHERE FOR P2 TURN", "gray", 16, 100)
+
+            elif self.state == "GAME_OVER":
+                if self.multiplayer:
+                    winner = "PLAYER 1 WINS!" if self.p1_score > self.p2_score else "PLAYER 2 WINS!"
+                    self.draw_centered_text(winner, "red", 32, -100)
+                    self.draw_centered_text(f"P1: {self.p1_score}   P2: {self.p2_score}", "white", 20, -50)
+                else:
+                    self.draw_centered_text("GAME OVER", "red", 32, -100)
+                    self.draw_centered_text(f"Final Score: {self.p1_score}", "white", 20, -50)
+                self.draw_centered_text("TAP ANYWHERE TO RETURN", "gray", 16, 100)
+
+            # Force native redraw (optional, but sometimes needed on iOS)
+            # Uncomment if you have rubicon-objc UIKit imported:
+            # try:
+            #     from rubicon.objc import ObjCClass
+            #     UIView = ObjCClass('UIView')
+            #     self.canvas._impl.native.setNeedsDisplay()
+            # except:
+            #     pass
+
+        except Exception as e:
+            self.log(f"Exception in redraw: {e}")
+            self.log(traceback.format_exc())
+            traceback.print_exc()
 
     def draw_tap_zones(self, top_text, bottom_text):
         with self.canvas.fill(color="rgb(40,40,40)"):
@@ -413,6 +534,7 @@ class HungrySnake4K(toga.App):
         self.draw_centered_text(bottom_text, "rgb(200,200,200)", 16, self.canvas_height / 4)
 
     def draw_centered_text(self, text, color, size, y_offset):
+        # Use a system font for better compatibility
         approx_char_width = size * 0.6
         text_width = len(text) * approx_char_width
         x = max(0, (self.canvas_width - text_width) / 2)
@@ -420,7 +542,7 @@ class HungrySnake4K(toga.App):
 
         self.canvas.fill_text(
             text, x=x, y=y,
-            font=toga.Font(family="monospace", size=size, weight="bold"),
+            font=toga.Font(family="system", size=size, weight="bold"),
             baseline=Baseline.MIDDLE,
         )
 
