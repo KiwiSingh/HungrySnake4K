@@ -12,7 +12,7 @@ formal_name = "Hungry Snake 4K"
 description = "A classic snake game built for mobile."
 icon = "assets/HungrySnake4K"
 sources = ["src/HungrySnake4K"]
-requires = ["pygame"]
+requires = []
 test_requires = ["pytest"]
 orientation = "portrait"
 
