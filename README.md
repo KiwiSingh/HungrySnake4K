@@ -15,7 +15,7 @@
 ## Screenshots
 ![Screenshot](HungrySnakeScreenshot.png)
 
-## AI Disclosure
+## AI disclosure
 The app icon for *Hungry Snake 4K* is partially AI-generated, with manually added elements via Canva. Also, `controller.py` is entirely AI-generated, created by prompting and troubleshooting via ChatGPT Codex. AI was also used to refactor certain aspects of the code, such as troubleshooting the addition of the resume functionality and soundtrack. Finally, the background score was co-produced with ChatGPT Codex, using the Ableton Live MCP and built-in Splice integration.
 
 ## Testing
