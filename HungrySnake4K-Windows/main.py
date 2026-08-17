@@ -42,14 +42,18 @@ game_over_sound = pygame.mixer.Sound(str(game_over_sound_path))
 game_over_sound.set_volume(0.8)
 
 screen = Screen()
-screen.setup(width=2160, height=2160)
+screen.setup(width=0.9, height=0.9)
 screen.bgcolor("black")
 screen.title("Hungry Snake 4K")
 screen.tracer(0)
 
+GRID_SIZE = 20
+X_LIMIT = (screen.window_width() // 2 // GRID_SIZE) * GRID_SIZE - GRID_SIZE
+Y_LIMIT = (screen.window_height() // 2 // GRID_SIZE) * GRID_SIZE - GRID_SIZE
+
 snake = Snake()
-food = Food()
-scoreboard = Scoreboard()
+food = Food(X_LIMIT, Y_LIMIT)
+scoreboard = Scoreboard(Y_LIMIT - 40)
 controller = Controller()
 
 
@@ -115,10 +119,10 @@ while True:
 
     # Detect collision with wall
     if (
-        snake.head.xcor() > 1060
-        or snake.head.xcor() < -1060
-        or snake.head.ycor() > 1060
-        or snake.head.ycor() < -1060
+        snake.head.xcor() > X_LIMIT
+        or snake.head.xcor() < -X_LIMIT
+        or snake.head.ycor() > Y_LIMIT
+        or snake.head.ycor() < -Y_LIMIT
     ):
         end_game()
 

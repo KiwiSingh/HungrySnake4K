@@ -6,19 +6,20 @@ FONT_LARGE = ("Courier New", 48, "normal")
 
 
 class Scoreboard(Turtle):
-    def __init__(self):
+    def __init__(self, score_y):
         super().__init__()
 
         self.score = 0
+        self.score_y = score_y
         self.color("white")
         self.penup()
-        self.goto(0, 1020)
+        self.goto(0, self.score_y)
         self.update_scoreboard()
         self.hideturtle()
 
     def update_scoreboard(self):
         self.clear()
-        self.goto(0, 1020)
+        self.goto(0, self.score_y)
         self.write(
             f"Score: {self.score}",
             align=ALIGNMENT,
@@ -44,8 +45,8 @@ class Scoreboard(Turtle):
 
         self.update_scoreboard()
 
-        def reset(self):
-            self.score = 0
-            self.color("white")
-            self.clear()
-            self.update_scoreboard()
+    def reset(self):
+        self.score = 0
+        self.color("white")
+        self.clear()
+        self.update_scoreboard()

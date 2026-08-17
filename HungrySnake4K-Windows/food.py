@@ -42,9 +42,11 @@ COLORS = [
 
 
 class Food(Turtle):
-    def __init__(self):
+    def __init__(self, x_limit, y_limit):
         super().__init__()
 
+        self.x_limit = x_limit
+        self.y_limit = y_limit
         self.shape("turtle")
         self.penup()
         self.shapesize(stretch_len=0.5, stretch_wid=0.5)
@@ -56,6 +58,6 @@ class Food(Turtle):
         self.foodcolor = random.choice(COLORS)
         self.color(self.foodcolor)
 
-        random_x = random.randrange(-1060, 1060, 20)
-        random_y = random.randrange(-1060, 1060, 20)
+        random_x = random.randrange(-self.x_limit, self.x_limit + 20, 20)
+        random_y = random.randrange(-self.y_limit, self.y_limit + 20, 20)
         self.goto(random_x, random_y)
