@@ -23,12 +23,12 @@ jobs:
 
       - name: Create iOS Project
         run: |
-          cd mobile
+          cd mobile/ios
           briefcase create ios
           
       - name: Build Unsigned IPA
         run: |
-          cd mobile/build/HungrySnake4K/ios/Xcode
+          cd mobile/ios/build/HungrySnake4K/ios/Xcode
           xcodebuild -project "Hungry Snake 4K.xcodeproj" \
                      -scheme "Hungry Snake 4K" \
                      -configuration Release \
@@ -46,4 +46,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: HungrySnake4K-iOS-IPA
-          path: mobile/build/HungrySnake4K/ios/Xcode/HungrySnake4K-iOS.ipa
+          path: mobile/ios/build/HungrySnake4K/ios/Xcode/HungrySnake4K-iOS.ipa
