@@ -4,6 +4,7 @@ from toga.style.pack import COLUMN
 from toga.constants import Baseline
 import random
 import asyncio
+import traceback
 
 class HungrySnake4K(toga.App):
     def startup(self):
@@ -149,63 +150,73 @@ class HungrySnake4K(toga.App):
         while True:
             await asyncio.sleep(0.08) # Game tick speed
 
-            if self.state in ["P1_PLAY", "P2_PLAY"]:
-                head_x, head_y = self.snake[0]
-                new_head = (head_x + self.snake_dir[0] * self.grid_size, 
-                            head_y + self.snake_dir[1] * self.grid_size)
-                
-                # Wall Collision
-                if (new_head[0] < 0 or new_head[0] >= self.canvas_width or 
-                    new_head[1] < 0 or new_head[1] >= self.canvas_height):
-                    self.trigger_game_over(1 if self.state == "P1_PLAY" else 2)
-                # Tail Collision
-                elif new_head in self.snake:
-                    self.trigger_game_over(1 if self.state == "P1_PLAY" else 2)
-                else:
-                    self.snake.insert(0, new_head)
-                    
-                    # Food Collision
-                    if (abs(new_head[0] - self.food_pos[0]) < self.grid_size and 
-                        abs(new_head[1] - self.food_pos[1]) < self.grid_size):
-                        
-                        pts = 10 if self.food_color == "gold" else 5 if self.food_color == "silver" else 1
-                        self.current_score += pts
-                        self.current_level_points += pts
-                        
-                        if self.current_level_points >= self.points_to_next_level:
-                            self.level += 1
-                            self.points_to_next_level = (self.level + 1) * 10
-                            self.current_level_points = 0
-                            
-                        self.spawn_food()
-                    else:
-                        self.snake.pop()
+            # Background tasks fail silently in Toga - without this try/except,
+            # any exception in here would kill the loop with no visible error
+            # (this is exactly what caused the earlier black-screen bug).
+            try:
+                if self.state in ["P1_PLAY", "P2_PLAY"]:
+                    head_x, head_y = self.snake[0]
+                    new_head = (head_x + self.snake_dir[0] * self.grid_size,
+                                head_y + self.snake_dir[1] * self.grid_size)
 
-            self.redraw()
+                    # Wall Collision
+                    if (new_head[0] < 0 or new_head[0] >= self.canvas_width or
+                        new_head[1] < 0 or new_head[1] >= self.canvas_height):
+                        self.trigger_game_over(1 if self.state == "P1_PLAY" else 2)
+                    # Tail Collision
+                    elif new_head in self.snake:
+                        self.trigger_game_over(1 if self.state == "P1_PLAY" else 2)
+                    else:
+                        self.snake.insert(0, new_head)
+
+                        # Food Collision
+                        if (abs(new_head[0] - self.food_pos[0]) < self.grid_size and
+                            abs(new_head[1] - self.food_pos[1]) < self.grid_size):
+
+                            pts = 10 if self.food_color == "gold" else 5 if self.food_color == "silver" else 1
+                            self.current_score += pts
+                            self.current_level_points += pts
+
+                            if self.current_level_points >= self.points_to_next_level:
+                                self.level += 1
+                                self.points_to_next_level = (self.level + 1) * 10
+                                self.current_level_points = 0
+
+                            self.spawn_food()
+                        else:
+                            self.snake.pop()
+
+                self.redraw()
+            except Exception:
+                # Prints to the Simulator/Xcode console so failures are visible
+                # instead of silently freezing the screen.
+                traceback.print_exc()
 
     # --- Rendering logic using Toga Canvas ---
     def redraw(self):
         self.canvas.clear()
-        
+
         # Background
-        with self.canvas.Fill(color="black") as fill:
-            fill.rect(0, 0, self.canvas_width, self.canvas_height)
+        with self.canvas.fill(color="black"):
+            self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
         if self.state in ["P1_PLAY", "P2_PLAY"]:
             # Draw Food
-            with self.canvas.Fill(color=self.food_color) as fill:
-                fill.rect(self.food_pos[0], self.food_pos[1], self.grid_size, self.grid_size)
-            
+            with self.canvas.fill(color=self.food_color):
+                self.canvas.rect(self.food_pos[0], self.food_pos[1], self.grid_size, self.grid_size)
+
             # Draw Snake
-            with self.canvas.Fill(color="white") as fill:
+            with self.canvas.fill(color="white"):
                 for segment in self.snake:
-                    fill.rect(segment[0], segment[1], self.grid_size - 2, self.grid_size - 2)
+                    self.canvas.rect(segment[0], segment[1], self.grid_size - 2, self.grid_size - 2)
 
             # Scoreboard
-            with self.canvas.Fill(color="white") as fill:
-                fill.font = toga.Font(family="monospace", size=20)
-                fill.write_text(f"Level: {self.level}   Score: {self.current_score}", 
-                                x=20, y=30, baseline=Baseline.TOP)
+            self.canvas.fill_text(
+                f"Level: {self.level}   Score: {self.current_score}",
+                x=20, y=30,
+                font=toga.Font(family="monospace", size=20),
+                baseline=Baseline.TOP,
+            )
 
         elif self.state == "MENU":
             self.draw_tap_zones("TAP HERE FOR 1 PLAYER", "TAP HERE FOR 2 PLAYERS")
@@ -232,12 +243,12 @@ class HungrySnake4K(toga.App):
             self.draw_centered_text("TAP ANYWHERE TO RETURN", "gray", 16, 100)
 
     def draw_tap_zones(self, top_text, bottom_text):
-        with self.canvas.Fill(color="rgb(40,40,40)") as fill:
-            fill.rect(0, 0, self.canvas_width, self.canvas_height / 2)
+        with self.canvas.fill(color="rgb(40,40,40)"):
+            self.canvas.rect(0, 0, self.canvas_width, self.canvas_height / 2)
         self.draw_centered_text(top_text, "rgb(200,200,200)", 16, -self.canvas_height / 4)
 
-        with self.canvas.Fill(color="rgb(20,20,20)") as fill:
-            fill.rect(0, self.canvas_height / 2, self.canvas_width, self.canvas_height / 2)
+        with self.canvas.fill(color="rgb(20,20,20)"):
+            self.canvas.rect(0, self.canvas_height / 2, self.canvas_width, self.canvas_height / 2)
         self.draw_centered_text(bottom_text, "rgb(200,200,200)", 16, self.canvas_height / 4)
 
     def draw_centered_text(self, text, color, size, y_offset):
@@ -247,9 +258,11 @@ class HungrySnake4K(toga.App):
         x = max(0, (self.canvas_width - text_width) / 2)
         y = (self.canvas_height / 2) + y_offset
 
-        with self.canvas.Fill(color=color) as fill:
-            fill.font = toga.Font(family="monospace", size=size, weight="bold")
-            fill.write_text(text, x=x, y=y, baseline=Baseline.MIDDLE)
+        self.canvas.fill_text(
+            text, x=x, y=y,
+            font=toga.Font(family="monospace", size=size, weight="bold"),
+            baseline=Baseline.MIDDLE,
+        )
 
 
 def main():
