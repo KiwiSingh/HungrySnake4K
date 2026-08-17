@@ -1,0 +1,38 @@
+name: Build Hungry Snake 4K — Android
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install System Dependencies
+        run: sudo apt-get update && sudo apt-get install -y default-jdk
+
+      - name: Install BeeWare
+        run: python -m pip install briefcase
+
+      - name: Build Android APK
+        run: |
+          cd mobile
+          briefcase create android
+          briefcase build android
+          briefcase package android --debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HungrySnake4K-Android-APK
+          path: mobile/build/HungrySnake4K/android/gradle/app/build/outputs/apk/debug/*.apk

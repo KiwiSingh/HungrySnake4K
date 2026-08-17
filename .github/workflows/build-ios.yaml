@@ -1,0 +1,49 @@
+name: Build Hungry Snake 4K — iOS (Unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install BeeWare
+        run: python -m pip install briefcase
+
+      - name: Create iOS Project
+        run: |
+          cd mobile
+          briefcase create ios
+          
+      - name: Build Unsigned IPA
+        run: |
+          cd mobile/build/HungrySnake4K/ios/Xcode
+          xcodebuild -project "Hungry Snake 4K.xcodeproj" \
+                     -scheme "Hungry Snake 4K" \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     clean build
+          
+          mkdir -p Payload
+          mv build/Release-iphoneos/*.app Payload/
+          zip -r "HungrySnake4K-iOS.ipa" Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HungrySnake4K-iOS-IPA
+          path: mobile/build/HungrySnake4K/ios/Xcode/HungrySnake4K-iOS.ipa
