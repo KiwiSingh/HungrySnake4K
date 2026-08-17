@@ -20,10 +20,14 @@ class Background:
     def randomize(self):
         background_path = self.get_resource_path(random.choice(BACKGROUND_FILES))
 
+        # Prevent PIL from receiving a 0 dimension during macOS resize events
+        target_width = max(1, self.screen.window_width())
+        target_height = max(1, self.screen.window_height())
+
         with Image.open(background_path) as source_image:
             fitted_background = ImageOps.fit(
                 source_image.convert("RGB"),
-                (self.screen.window_width(), self.screen.window_height()),
+                (target_width, target_height),
                 method=Image.Resampling.LANCZOS,
                 centering=(0.5, 0.5),
             )

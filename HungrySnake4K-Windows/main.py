@@ -101,38 +101,44 @@ screen.listen()
 
 pygame.mixer.music.play(loops=-1)
 
-while True:
-    screen.update()
-    time.sleep(0.1)
-
+def game_loop():
     controller_button_pressed = controller.update(snake)
 
     if not game_is_on:
         if controller_button_pressed:
             restart_game()
-        continue
+    else:
+        snake.move()
+        food.animate()
 
-    snake.move()
-    food.animate()
+        # Detect collision with food
+        if snake.head.distance(food) < 15:
+            food_sound.play()
+            scoreboard.increase_score(food)
+            snake.extend()
+            food.refresh()
 
-    # Detect collision with food
-
-    if snake.head.distance(food) < 15:
-        food_sound.play()
-        scoreboard.increase_score(food)
-        snake.extend()
-        food.refresh()
-
-    # Detect collision with wall
-    if (
-        snake.head.xcor() > X_LIMIT
-        or snake.head.xcor() < -X_LIMIT
-        or snake.head.ycor() > Y_LIMIT
-        or snake.head.ycor() < -Y_LIMIT
-    ):
-        end_game()
-
-    # Detect collision with tail
-    for segment in snake.segments[1:]:
-        if snake.head.distance(segment) < 10:
+        # Detect collision with wall
+        if (
+            snake.head.xcor() > X_LIMIT
+            or snake.head.xcor() < -X_LIMIT
+            or snake.head.ycor() > Y_LIMIT
+            or snake.head.ycor() < -Y_LIMIT
+        ):
             end_game()
+
+        # Detect collision with tail
+        for segment in snake.segments[1:]:
+            if snake.head.distance(segment) < 10:
+                end_game()
+
+    screen.update()
+    
+    # Schedule the next frame in 100ms
+    screen.ontimer(game_loop, 100)
+
+# Kick off the non-blocking loop
+game_loop()
+
+# Hand control over to Tkinter's native event loop
+screen.mainloop()
