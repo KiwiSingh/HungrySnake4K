@@ -43,3 +43,9 @@ class Scoreboard(Turtle):
             self.score += 1
 
         self.update_scoreboard()
+
+        def reset(self):
+            self.score = 0
+            self.color("white")
+            self.clear()
+            self.update_scoreboard()

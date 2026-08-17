@@ -38,6 +38,7 @@ jobs:
             --onefile `
             --name "Hungry Snake 4K" `
             --icon "HungrySnake4K.ico" `
+            --add-data "assets;assets" `
             main.py
 
       - name: Upload artifact

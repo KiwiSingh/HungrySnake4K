@@ -28,6 +28,11 @@ jobs:
         run: |
           python setup.py py2app
 
+      - name: Bundle sound assets
+        run: |
+          mkdir -p "dist/Hungry Snake 4K.app/Contents/Resources/assets"
+          ditto assets "dist/Hungry Snake 4K.app/Contents/Resources/assets"
+
       - name: Zip app bundle
         run: |
           ditto -c -k --sequesterRsrc --keepParent \

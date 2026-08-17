@@ -15,9 +15,9 @@ OPTIONS = {
     "plist": {
         "CFBundleName": "Hungry Snake 4K",
         "CFBundleDisplayName": "Hungry Snake 4K",
-        "CFBundleIdentifier": "com.hungrysnake4k.game",
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "1.0.0",
+        "CFBundleIdentifier": "com.kiwisingh.hungrysnake4k",
+        "CFBundleShortVersionString": "2.0.0",
+        "CFBundleVersion": "2.0.0",
         "NSHighResolutionCapable": True,
     },
 }
