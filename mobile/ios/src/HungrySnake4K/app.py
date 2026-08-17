@@ -86,14 +86,6 @@ class HungrySnake4K(toga.App):
         except:
             pass
 
-    def get_recent_log(self, lines=10):
-        try:
-            with open(self.log_path, "r") as f:
-                all_lines = f.readlines()
-            return "".join(all_lines[-lines:])
-        except:
-            return "Log not available"
-
     # ---------- Audio (unchanged) ----------
     def init_audio(self):
         self.audio_players = {}
@@ -396,29 +388,27 @@ class HungrySnake4K(toga.App):
                 self.state = "REMATCH_PROMPT"
         self.log(f"Game over, state {self.state}")
 
-    # ---------- REDRAW – completely rewritten ----------
+    # ---------- REDRAW – using context managers ----------
     def redraw(self):
         try:
-            # Update debug label
             self.debug_label.text = f"State:{self.state} W:{self.canvas_width} H:{self.canvas_height} Score:{self.current_score}"
 
-            # First, clear the canvas by filling with black
-            self.canvas.fill_rect(0, 0, self.canvas_width, self.canvas_height, color="black")
+            # Clear the canvas – this should paint it black
+            with self.canvas.fill(color="black"):
+                self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
-            # ================= DIAGNOSTIC =================
-            # Draw a full‑screen red rectangle – if you see this, the canvas works!
-            self.canvas.fill_rect(0, 0, self.canvas_width, self.canvas_height, color="red")
+            # ---------- DIAGNOSTIC: fill entire canvas with bright green ----------
+            with self.canvas.fill(color="lime"):
+                self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+
             # Write big white text
-            self.canvas.write_text(
-                "CANVAS WORKS",
+            self.canvas.fill_text(
+                "GREEN SCREEN",
                 x=50, y=200,
                 font=toga.Font(family="system", size=40, weight="bold"),
+                baseline=Baseline.TOP,
                 color="white"
             )
-            # =============================================
-
-            # Now draw the game content (but the red background will cover it)
-            # We'll remove the red after we confirm it works.
 
             # Force native redraw on iOS
             if self.platform == 'ios':
@@ -426,19 +416,15 @@ class HungrySnake4K(toga.App):
                     from rubicon.objc import ObjCClass
                     UIView = ObjCClass('UIView')
                     self.canvas._impl.native.setNeedsDisplay()
+                    self.canvas._impl.native.setNeedsLayout()
                 except:
                     pass
 
         except Exception as e:
             self.log(f"Exception in redraw: {e}")
             self.log(traceback.format_exc())
-
-    # ---------- Helpers (not used in this minimal redraw) ----------
-    def draw_tap_zones(self, top_text, bottom_text):
-        pass
-
-    def draw_centered_text(self, text, color, size, y_offset):
-        pass
+            # Show error on debug label
+            self.debug_label.text = f"ERROR: {str(e)[:50]}"
 
 def main():
     return HungrySnake4K()
