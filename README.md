@@ -9,7 +9,7 @@
 - The food the snake eats is all shaped like turtles now
 - The color of the food is randomized, based on a list of colors
 - If the snake eats a piece of food that is golden, the user gains 10 points. If it eats a piece of food that is silver, the user gains 5 points. For all other kinds of food, the user gains 1 point.
-- Controller support is provided via `pygame`. Kindly note that only the left control stick on the Sony DualSense Controller has been tested at this time.
+- Controller support is provided via `pygame`. Kindly note that only the left control stick on the Sony DualSense™ Controller has been tested at this time.
 - Cross-platform build support is provided via GitHub Actions. macOS and Windows builds have been extensively tested, whereas the Linux build is completely untested as of the time of writing this. If you would be so gracious as to test this out on your Linux gaming rigs or even feature this game in a YouTube video, it would make me extremely happy.
 
 ## Screenshots
@@ -25,4 +25,4 @@ This game has been tested natively on an M3 MacBook Air with 16 gb of unified me
 In case of any issues with the game or the code, open a GitHub Issue, or contact me at [kiwisingh@proton.me](mailto:kiwisingh@proton.me)
 
 ## Copyright disclaimers
-The background images used in this project are all images created by artist [Steve A Johnson](https://www.pexels.com/@steve/) on Pexels. Nokia and the original Snake game are both registered trademarks of the Nokia corporation. DualSense™ and PlayStation 5 are both registered trademarks of Sony Computer Entertainment and the Sony corporation at large. lunaluxe and The Vamps are both established artists/bands, and the background music used in this project only apes their style, and does not intend to infringe on their copyrights in any way, shape, or form. *Hungry Snake 4K* is my own, open-source creation. The *Hungry Snake 4K* logo is partially AI-generated, but is not free for commercial usage without my prior consent. No rights or lack thereof can be derived from this repository, or these disclaimers.
+The background images used in this project are all images created by artist [Steve A Johnson](https://www.pexels.com/@steve/) on Pexels. Nokia 3310 and the original Snake game are both registered trademarks of the Nokia corporation. DualSense™ and PlayStation 5 are both registered trademarks of Sony Computer Entertainment and the Sony corporation at large. lunaluxe and The Vamps are both established artists/bands, and the background music used in this project only apes their style, and does not intend to infringe on their copyrights in any way, shape, or form. *Hungry Snake 4K* is my own, open-source creation. The *Hungry Snake 4K* logo is partially AI-generated, but is not free for commercial usage without my prior consent. No rights or lack thereof can be derived from this repository, or these disclaimers.
