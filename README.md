@@ -10,10 +10,7 @@
 - The color of the food is randomized, based on a list of colors
 - If the snake eats a piece of food that is golden, the user gains 10 points. If it eats a piece of food that is silver, the user gains 5 points. For all other kinds of food, the user gains 1 point.
 - Controller support is provided via `pygame`. Kindly note that only the left control stick on the Sony DualSense Controller has been tested at this time.
-- Cross-platform build support is provided via GitHub Actions. Kindly note that as of the time of writing, only macOS and Windows builds are provided, with a Linux build boilerplate planned for sometime in the future.
-
-## Screenshots
-![Screenshot](HungrySnakeScreenshot.png)
+- Cross-platform build support is provided via GitHub Actions. macOS and Windows builds have been extensively tested, whereas the Linux build is completely untested as of the time of writing this. If you would be so gracious as to test this out on your Linux gaming rigs or even feature this game in a YouTube video, it would make me extremely happy.
 
 ## AI Disclosure
 The app icon for *Hungry Snake 4K* is partially AI-generated, with manually added elements via Canva. Also, `controller.py` is entirely AI-generated, created by prompting and troubleshooting via ChatGPT Codex. AI was also used to refactor certain aspects of the code, such as troubleshooting the addition of the resume functionality and soundtrack. Finally, the background score was co-produced with ChatGPT Codex, using the Ableton Live MCP and built-in Splice integration.
