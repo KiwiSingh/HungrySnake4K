@@ -18,36 +18,36 @@ class Controller:
         else:
             print("No controller detected. Keyboard controls enabled.")
 
-def update(self, snake):
-    if self.controller is None:
-        return False
+    def update(self, snake):
+        if self.controller is None:
+            return False
 
-    button_pressed = False
+        button_pressed = False
 
-    for event in pygame.event.get():
-        if event.type == pygame.JOYBUTTONDOWN:
-            button_pressed = True
+        for event in pygame.event.get():
+            if event.type == pygame.JOYBUTTONDOWN:
+                button_pressed = True
 
-    x = self.controller.get_axis(0)
-    y = self.controller.get_axis(1)
+        x = self.controller.get_axis(0)
+        y = self.controller.get_axis(1)
 
-    if abs(x) < self.DEADZONE and abs(y) < self.DEADZONE:
-        self.stick_active = False
+        if abs(x) < self.DEADZONE and abs(y) < self.DEADZONE:
+            self.stick_active = False
+            return button_pressed
+
+        if self.stick_active:
+            return button_pressed
+
+        if abs(x) > abs(y):
+            if x < -self.DEADZONE:
+                snake.left()
+            elif x > self.DEADZONE:
+                snake.right()
+        else:
+            if y < -self.DEADZONE:
+                snake.up()
+            elif y > self.DEADZONE:
+                snake.down()
+
+        self.stick_active = True
         return button_pressed
-
-    if self.stick_active:
-        return button_pressed
-
-    if abs(x) > abs(y):
-        if x < -self.DEADZONE:
-            snake.left()
-        elif x > self.DEADZONE:
-            snake.right()
-    else:
-        if y < -self.DEADZONE:
-            snake.up()
-        elif y > self.DEADZONE:
-            snake.down()
-
-    self.stick_active = True
-    return button_pressed
