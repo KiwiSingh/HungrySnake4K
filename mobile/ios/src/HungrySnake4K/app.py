@@ -426,3 +426,6 @@ class HungrySnake4K(toga.App):
 
 def main():
     return HungrySnake4K()
+
+if __name__ == '__main__':
+    main().main_loop()
