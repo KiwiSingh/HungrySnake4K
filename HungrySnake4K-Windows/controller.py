@@ -1,4 +1,4 @@
-import pygame #type: ignore
+import pygame # type: ignore
 
 
 class Controller:
@@ -10,23 +10,33 @@ class Controller:
 
         self.controller = None
         self.stick_active = False
+        self.connect_controller()
 
+    def connect_controller(self):
         if pygame.joystick.get_count() > 0:
             self.controller = pygame.joystick.Joystick(0)
-            self.controller.init()
             print(f"Controller connected: {self.controller.get_name()}")
         else:
+            self.controller = None
             print("No controller detected. Keyboard controls enabled.")
 
     def update(self, snake):
-        if self.controller is None:
-            return False
-
         button_pressed = False
 
         for event in pygame.event.get():
-            if event.type == pygame.JOYBUTTONDOWN:
+            if event.type == pygame.JOYDEVICEADDED:
+                if self.controller is None:
+                    self.connect_controller()
+
+            elif event.type == pygame.JOYDEVICEREMOVED:
+                self.controller = None
+                print("Controller disconnected. Keyboard controls enabled.")
+
+            elif event.type == pygame.JOYBUTTONDOWN:
                 button_pressed = True
+
+        if self.controller is None:
+            return button_pressed
 
         x = self.controller.get_axis(0)
         y = self.controller.get_axis(1)

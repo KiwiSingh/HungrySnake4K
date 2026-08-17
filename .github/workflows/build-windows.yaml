@@ -39,6 +39,7 @@ jobs:
             --name "Hungry Snake 4K" `
             --icon "HungrySnake4K.ico" `
             --add-data "assets;assets" `
+            --collect-all pygame `
             main.py
 
       - name: Upload artifact
