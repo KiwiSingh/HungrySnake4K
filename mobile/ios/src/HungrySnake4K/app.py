@@ -1,3 +1,4 @@
+import sys
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN
@@ -6,7 +7,7 @@ import random
 import asyncio
 import traceback
 
-# Wrap pygame in a try-except to prevent fatal crashes if mobile compilation fails
+# Wrap pygame so mobile apps still launch even though Pygame isn't installed
 try:
     import pygame
     PYGAME_AVAILABLE = True
@@ -15,6 +16,14 @@ except ImportError:
 
 class HungrySnake4K(toga.App):
     def startup(self):
+        # Platform Detection
+        if hasattr(sys, 'getandroidapilevel'):
+            self.platform = 'android'
+        elif sys.platform == "ios":
+            self.platform = 'ios'
+        else:
+            self.platform = 'desktop'
+
         # Game Settings
         self.grid_size = 40
         self.canvas_width = 400
@@ -53,44 +62,125 @@ class HungrySnake4K(toga.App):
         self.main_window.content = box
         self.main_window.show()
 
-        # Start the non-blocking game loop
         self.add_background_task(self.game_loop)
         
     def init_audio(self):
-        self.audio = {}
-        if not PYGAME_AVAILABLE:
-            return
+        self.audio_players = {}
+        self.bg_player = None
+
+        sfx_files = {
+            "food_blip": "food_blip.wav",
+            "game_over": "game_over.wav",
+            "player1_begin": "player1_begin.wav",
+            "player2_begin": "player2_begin.wav",
+            "player1_wins": "player1_wins.wav",
+            "player2_wins": "player2_wins.wav",
+            "its_a_draw": "its_a_draw.wav"
+        }
+
+        if self.platform == 'ios':
+            from rubicon.objc import ObjCClass
+            from ctypes import cdll
+            from ctypes.util import find_library
             
-        try:
-            pygame.mixer.init()
-            pygame.mixer.set_num_channels(8)
-            
-            # Load Background Score
-            bg_score_path = self.paths.app / "assets" / "background_score.mp3"
-            if bg_score_path.exists():
-                pygame.mixer.music.load(str(bg_score_path))
-                pygame.mixer.music.set_volume(0.4)
-                
-            # Load SFX
-            sfx_files = {
-                "food_blip": "food_blip.wav",
-                "game_over": "game_over.wav",
-                "player1_begin": "player1_begin.wav",
-                "player2_begin": "player2_begin.wav",
-                "player1_wins": "player1_wins.wav",
-                "player2_wins": "player2_wins.wav",
-                "its_a_draw": "its_a_draw.wav"
-            }
-            
+            cdll.LoadLibrary(find_library('AVFoundation'))
+            AVAudioPlayer = ObjCClass('AVAudioPlayer')
+            NSURL = ObjCClass('NSURL')
+
+            bg_path = self.paths.app / "assets" / "background_score.mp3"
+            if bg_path.exists():
+                url = NSURL.fileURLWithPath_(str(bg_path))
+                self.bg_player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
+                if self.bg_player:
+                    self.bg_player.numberOfLoops = -1
+                    self.bg_player.volume = 0.4
+                    self.bg_player.prepareToPlay()
+
             for key, filename in sfx_files.items():
                 path = self.paths.app / "assets" / filename
                 if path.exists():
-                    snd = pygame.mixer.Sound(str(path))
-                    snd.set_volume(0.8)
-                    self.audio[key] = snd
-                    
-        except Exception as e:
-            print(f"Audio initialization failed: {e}")
+                    url = NSURL.fileURLWithPath_(str(path))
+                    player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
+                    if player:
+                        player.volume = 0.8
+                        player.prepareToPlay()
+                        self.audio_players[key] = player
+
+        elif self.platform == 'android':
+            from java import jclass
+            MediaPlayer = jclass('android.media.MediaPlayer')
+            
+            try:
+                bg_path = self.paths.app / "assets" / "background_score.mp3"
+                if bg_path.exists():
+                    self.bg_player = MediaPlayer()
+                    self.bg_player.setDataSource(str(bg_path))
+                    self.bg_player.setLooping(True)
+                    self.bg_player.setVolume(0.4, 0.4)
+                    self.bg_player.prepare()
+
+                for key, filename in sfx_files.items():
+                    path = self.paths.app / "assets" / filename
+                    if path.exists():
+                        player = MediaPlayer()
+                        player.setDataSource(str(path))
+                        player.setVolume(0.8, 0.8)
+                        player.prepare()
+                        self.audio_players[key] = player
+            except Exception as e:
+                print(f"Android Audio Exception: {e}")
+
+        else:
+            if not PYGAME_AVAILABLE:
+                return
+            try:
+                pygame.mixer.init()
+                pygame.mixer.set_num_channels(8)
+                
+                bg_path = self.paths.app / "assets" / "background_score.mp3"
+                if bg_path.exists():
+                    pygame.mixer.music.load(str(bg_path))
+                    pygame.mixer.music.set_volume(0.4)
+
+                for key, filename in sfx_files.items():
+                    path = self.paths.app / "assets" / filename
+                    if path.exists():
+                        snd = pygame.mixer.Sound(str(path))
+                        snd.set_volume(0.8)
+                        self.audio_players[key] = snd
+            except Exception as e:
+                print(f"Pygame audio failed: {e}")
+
+    def play_sound(self, sound_key):
+        if self.platform == 'ios':
+            if sound_key in self.audio_players:
+                player = self.audio_players[sound_key]
+                player.currentTime = 0 
+                player.play()
+        elif self.platform == 'android':
+            if sound_key in self.audio_players:
+                player = self.audio_players[sound_key]
+                player.seekTo(0)
+                player.start()
+        else:
+            if PYGAME_AVAILABLE and sound_key in self.audio_players:
+                self.audio_players[sound_key].play()
+
+    def play_bgm(self):
+        if self.platform == 'ios':
+            if self.bg_player: self.bg_player.play()
+        elif self.platform == 'android':
+            if self.bg_player: self.bg_player.start()
+        else:
+            if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+
+    def stop_bgm(self):
+        if self.platform == 'ios':
+            if self.bg_player: self.bg_player.stop()
+        elif self.platform == 'android':
+            if self.bg_player: self.bg_player.pause()
+        else:
+            if PYGAME_AVAILABLE: pygame.mixer.music.stop()
 
     def init_backgrounds(self):
         self.backgrounds = []
@@ -102,10 +192,6 @@ class HungrySnake4K(toga.App):
             if path.exists():
                 self.backgrounds.append(toga.Image(path))
                 
-    def play_sound(self, sound_key):
-        if PYGAME_AVAILABLE and sound_key in self.audio:
-            self.audio[sound_key].play()
-
     def randomize_background(self):
         if self.backgrounds:
             self.current_bg = random.choice(self.backgrounds)
@@ -147,8 +233,7 @@ class HungrySnake4K(toga.App):
             self.food_color = random.choice(["white", "red", "green", "blue", "cyan", "magenta", "yellow"])
 
     def trigger_game_over(self, crashed_player):
-        if PYGAME_AVAILABLE:
-            pygame.mixer.music.stop()
+        self.stop_bgm()
         
         if crashed_player == 1:
             self.p1_score = self.current_score
@@ -203,14 +288,14 @@ class HungrySnake4K(toga.App):
         if self.state == "MENU":
             self.multiplayer = not top_half
             self.play_sound("player1_begin")
-            if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+            self.play_bgm()
             self.reset_player()
             self.state = "P1_PLAY"
             
         elif self.state == "REMATCH_PROMPT":
             if top_half:
                 self.play_sound("player1_begin")
-                if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+                self.play_bgm()
                 self.reset_player()
                 self.state = "P1_PLAY"
             else:
@@ -219,7 +304,7 @@ class HungrySnake4K(toga.App):
                 
         elif self.state == "P2_TRANSITION":
             self.play_sound("player2_begin")
-            if PYGAME_AVAILABLE: pygame.mixer.music.play(loops=-1)
+            self.play_bgm()
             self.reset_player()
             self.state = "P2_PLAY"
             
