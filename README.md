@@ -18,5 +18,8 @@
 ## AI Disclosure
 The app icon for *Hungry Snake 4K* is partially AI-generated, with manually added elements via Canva. Also, `controller.py` is entirely AI-generated, created by prompting and troubleshooting via ChatGPT Codex.
 
+## Testing
+This game has been tested natively on an M3 MacBook Air with 16 gb of unified memory. The Windows version has been tested inside of CrossOver Preview 26. However, there might still be gaps in the UX that might need addressing. See the next section.
+
 ## Contact
 In case of any issues with the game or the code, open a GitHub Issue, or contact me at [kiwisingh@proton.me](mailto:kiwisingh@proton.me)
