@@ -50,6 +50,7 @@ class HungrySnake4K(toga.App):
 
         # No game loop yet – we'll update via touch
         self.log("Startup complete")
+        asyncio.create_task(self.game_loop(None))
 
     def log(self, msg):
         try:
@@ -103,6 +104,19 @@ class HungrySnake4K(toga.App):
             self.log(f"redraw exception: {e}")
             self.log(traceback.format_exc())
             self.debug_label.text = f"ERROR: {str(e)[:50]}"
+            
+    async def game_loop(self, widget):
+        self.log("game_loop started")
+        self.snake = [(100,100), (60,100), (20,100)]  # dummy snake
+        while True:
+            await asyncio.sleep(0.08)
+            # move snake dummy: just shift head
+            if self.state == "PLAY":
+                head = self.snake[0]
+                self.snake.insert(0, (head[0]+40, head[1]))
+                self.snake.pop()
+                self.log(f"Snake length: {len(self.snake)}")
+                self.redraw()
 
 def main():
     return HungrySnake4K()
