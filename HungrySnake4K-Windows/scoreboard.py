@@ -2,14 +2,13 @@ from turtle import Turtle
 
 ALIGNMENT = "center"
 FONT = ("Courier New", 24, "normal")
-FONT_LARGE = ("Courier New", 48, "normal")
-
 
 class Scoreboard(Turtle):
     def __init__(self, score_y):
         super().__init__()
 
         self.score = 0
+        self.level = 1
         self.score_y = score_y
         self.color("white")
         self.penup()
@@ -21,18 +20,18 @@ class Scoreboard(Turtle):
         self.clear()
         self.goto(0, self.score_y)
         self.write(
-            f"Score: {self.score}",
+            f"Level: {self.level}   Score: {self.score}",
             align=ALIGNMENT,
             font=FONT
         )
 
-    def game_over(self):
-        self.goto(0, 0)
+    def show_message(self, message, size=48, y_offset=0):
+        self.goto(0, y_offset)
         self.color("red")
         self.write(
-            "GAME OVER",
+            message,
             align=ALIGNMENT,
-            font=FONT_LARGE
+            font=("Courier New", size, "bold")
         )
 
     def increase_score(self, food):
@@ -44,9 +43,15 @@ class Scoreboard(Turtle):
             self.score += 1
 
         self.update_scoreboard()
+        return self.score
+        
+    def level_up(self):
+        self.level += 1
+        self.update_scoreboard()
 
     def reset(self):
         self.score = 0
+        self.level = 1
         self.color("white")
         self.clear()
         self.update_scoreboard()

@@ -17,8 +17,8 @@ OPTIONS = {
         "CFBundleName": "Hungry Snake 4K",
         "CFBundleDisplayName": "Hungry Snake 4K",
         "CFBundleIdentifier": "com.kiwisingh.hungrysnake4k",
-        "CFBundleShortVersionString": "2.0.2",
-        "CFBundleVersion": "2.0.2",
+        "CFBundleShortVersionString": "3.0.0",
+        "CFBundleVersion": "3.0.0",
         "NSHighResolutionCapable": True,
     },
 }
