@@ -1,5 +1,4 @@
-import pygame # type: ignore
-
+import pygame  # type: ignore
 
 class Controller:
     DEADZONE = 0.5
@@ -10,7 +9,7 @@ class Controller:
 
         self.controller = None
         self.stick_active = False
-        self.button_active = False
+        self.button_states = {}
 
         if self.connect_controller():
             print(f"Controller connected: {self.controller.get_name()}")
@@ -22,6 +21,7 @@ class Controller:
             return False
 
         self.controller = pygame.joystick.Joystick(0)
+        self.controller.init()
         return True
 
     def update(self, snake):
@@ -29,16 +29,17 @@ class Controller:
 
         if self.controller is None:
             self.connect_controller()
-            return False
+            return []
+
+        new_presses = []
 
         try:
-            button_is_held = any(
-                self.controller.get_button(button)
-                for button in range(self.controller.get_numbuttons())
-            )
-
-            button_pressed = button_is_held and not self.button_active
-            self.button_active = button_is_held
+            # Track state for all buttons to emit single "press down" events
+            for button in range(self.controller.get_numbuttons()):
+                is_pressed = self.controller.get_button(button)
+                if is_pressed and not self.button_states.get(button, False):
+                    new_presses.append(button)
+                self.button_states[button] = is_pressed
 
             x = self.controller.get_axis(0)
             y = self.controller.get_axis(1)
@@ -46,16 +47,17 @@ class Controller:
         except pygame.error:
             self.controller = None
             self.stick_active = False
-            self.button_active = False
+            self.button_states.clear()
             print("Controller disconnected. Keyboard controls enabled.")
-            return False
+            return []
 
+        # Joystick Deadzone and Movement Logic
         if abs(x) < self.DEADZONE and abs(y) < self.DEADZONE:
             self.stick_active = False
-            return button_pressed
+            return new_presses
 
         if self.stick_active:
-            return button_pressed
+            return new_presses
 
         if abs(x) > abs(y):
             if x < -self.DEADZONE:
@@ -69,4 +71,4 @@ class Controller:
                 snake.down()
 
         self.stick_active = True
-        return button_pressed
+        return new_presses
