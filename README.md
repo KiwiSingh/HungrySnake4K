@@ -16,7 +16,7 @@
 ![Screenshot](HungrySnakeScreenshot.png)
 
 ## AI Disclosure
-The app icon for *Hungry Snake 4K* is partially AI-generated, with manually added elements via Canva.
+The app icon for *Hungry Snake 4K* is partially AI-generated, with manually added elements via Canva. Also, `controller.py` is entirely AI-generated, created by prompting and troubleshooting via ChatGPT Codex.
 
 ## Contact
 In case of any issues with the game or the code, open a GitHub Issue, or contact me at [kiwisingh@proton.me](mailto:kiwisingh@proton.me)
