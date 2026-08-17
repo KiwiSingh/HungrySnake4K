@@ -16,7 +16,6 @@ except ImportError:
 
 class HungrySnake4K(toga.App):
     def startup(self):
-        # Platform detection
         if hasattr(sys, 'getandroidapilevel'):
             self.platform = 'android'
         elif sys.platform == "ios":
@@ -24,7 +23,6 @@ class HungrySnake4K(toga.App):
         else:
             self.platform = 'desktop'
 
-        # Debug log
         self.log_path = self.paths.data / "debug.log"
         try:
             with open(self.log_path, "w") as f:
@@ -33,14 +31,12 @@ class HungrySnake4K(toga.App):
             pass
         self.log("Startup: platform = " + self.platform)
 
-        # Game settings
         self.grid_size = 40
         self.DEFAULT_WIDTH = 400
         self.DEFAULT_HEIGHT = 800
         self.canvas_width = self.DEFAULT_WIDTH
         self.canvas_height = self.DEFAULT_HEIGHT
 
-        # State
         self.state = "MENU"
         self.multiplayer = False
         self.p1_score = 0
@@ -59,7 +55,6 @@ class HungrySnake4K(toga.App):
         self.init_audio()
         self.init_backgrounds()
 
-        # Canvas
         self.canvas = toga.Canvas(
             style=Pack(flex=1, background_color="black"),
             on_resize=self.on_resize,
@@ -67,7 +62,6 @@ class HungrySnake4K(toga.App):
             on_release=self.on_touch_up,
         )
 
-        # Debug label – now we'll also show recent log entries on the menu
         self.debug_label = toga.Label(
             "Starting...",
             style=Pack(padding=10, color="white", background_color="black", font_size=12)
@@ -81,7 +75,7 @@ class HungrySnake4K(toga.App):
         self.redraw()
         self.log("Creating game loop task")
         asyncio.create_task(self.game_loop(None))
-        self.add_background_task(self.game_loop)   # fallback
+        self.add_background_task(self.game_loop)
 
         self.log("Startup complete")
 
@@ -93,7 +87,6 @@ class HungrySnake4K(toga.App):
             pass
 
     def get_recent_log(self, lines=10):
-        """Return the last `lines` lines of the log file as a string."""
         try:
             with open(self.log_path, "r") as f:
                 all_lines = f.readlines()
@@ -101,7 +94,7 @@ class HungrySnake4K(toga.App):
         except:
             return "Log not available"
 
-    # ---------- Audio (with extra logging) ----------
+    # ---------- Audio (unchanged) ----------
     def init_audio(self):
         self.audio_players = {}
         self.bg_player = None
@@ -188,7 +181,6 @@ class HungrySnake4K(toga.App):
                         self.log(f"Desktop SFX loaded: {key}")
         except Exception as e:
             self.log(f"init_audio exception: {e}")
-            traceback.print_exc()
 
     def play_sound(self, sound_key):
         try:
@@ -228,7 +220,6 @@ class HungrySnake4K(toga.App):
         except Exception as e:
             self.log(f"stop_bgm error: {e}")
 
-    # ---------- Backgrounds ----------
     def init_backgrounds(self):
         self.backgrounds = []
         self.current_bg = None
@@ -252,7 +243,6 @@ class HungrySnake4K(toga.App):
         else:
             self.current_bg = None
 
-    # ---------- Resize ----------
     def on_resize(self, widget, width, height, **kwargs):
         if width > 0 and height > 0:
             self.canvas_width = width
@@ -262,7 +252,6 @@ class HungrySnake4K(toga.App):
             self.log(f"Ignored resize with zero dims: {width}x{height}")
         self.redraw()
 
-    # ---------- Game state ----------
     def reset_player(self):
         w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
         h = self.canvas_height if self.canvas_height > 0 else self.DEFAULT_HEIGHT
@@ -324,7 +313,7 @@ class HungrySnake4K(toga.App):
             self.play_bgm()
             self.reset_player()
             self.state = "P1_PLAY"
-            self.log("Start game, multiplayer=" + str(self.multiplayer))
+            self.log("Start game")
         elif self.state == "REMATCH_PROMPT":
             if top_half:
                 self.play_sound("player1_begin")
@@ -345,16 +334,11 @@ class HungrySnake4K(toga.App):
     # ---------- Game Loop ----------
     async def game_loop(self, widget, **kwargs):
         self.log("game_loop started")
-        loop_count = 0
         while True:
             await asyncio.sleep(0.08)
-            loop_count += 1
-            if loop_count % 100 == 0:
-                self.log(f"Loop alive, count {loop_count}")
             try:
                 if self.state in ["P1_PLAY", "P2_PLAY"]:
                     if not self.snake:
-                        self.log("WARNING: snake is empty! Resetting...")
                         self.reset_player()
                     head_x, head_y = self.snake[0]
                     new_head = (
@@ -388,114 +372,53 @@ class HungrySnake4K(toga.App):
             except Exception:
                 self.log("Exception in game_loop:")
                 self.log(traceback.format_exc())
-                traceback.print_exc()
 
-    # ---------- Rendering ----------
+    def trigger_game_over(self, crashed_player):
+        self.stop_bgm()
+        if crashed_player == 1:
+            self.p1_score = self.current_score
+            if self.multiplayer:
+                self.play_sound("game_over")
+                self.state = "P2_TRANSITION"
+            else:
+                self.play_sound("game_over")
+                self.state = "GAME_OVER"
+        else:
+            self.p2_score = self.current_score
+            if self.p1_score > self.p2_score:
+                self.play_sound("player1_wins")
+                self.state = "GAME_OVER"
+            elif self.p2_score > self.p1_score:
+                self.play_sound("player2_wins")
+                self.state = "GAME_OVER"
+            else:
+                self.play_sound("its_a_draw")
+                self.state = "REMATCH_PROMPT"
+        self.log(f"Game over, state {self.state}")
+
+    # ---------- REDRAW – completely rewritten ----------
     def redraw(self):
         try:
             # Update debug label
             self.debug_label.text = f"State:{self.state} W:{self.canvas_width} H:{self.canvas_height} Score:{self.current_score}"
 
-            self.canvas.clear()
+            # First, clear the canvas by filling with black
+            self.canvas.fill_rect(0, 0, self.canvas_width, self.canvas_height, color="black")
 
-            # --- MENU: show log and tap zones ---
-            if self.state == "MENU":
-                # Dark background
-                with self.canvas.fill(color="blue"):
-                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+            # ================= DIAGNOSTIC =================
+            # Draw a full‑screen red rectangle – if you see this, the canvas works!
+            self.canvas.fill_rect(0, 0, self.canvas_width, self.canvas_height, color="red")
+            # Write big white text
+            self.canvas.write_text(
+                "CANVAS WORKS",
+                x=50, y=200,
+                font=toga.Font(family="system", size=40, weight="bold"),
+                color="white"
+            )
+            # =============================================
 
-                # Show last log entries
-                log_text = self.get_recent_log(8)
-                self.canvas.fill_text(
-                    "--- DEBUG LOG ---",
-                    x=10, y=30,
-                    font=toga.Font(family="system", size=14, weight="bold"),
-                    baseline=Baseline.TOP
-                )
-                y = 60
-                for line in log_text.splitlines():
-                    self.canvas.fill_text(
-                        line,
-                        x=10, y=y,
-                        font=toga.Font(family="system", size=10),
-                        baseline=Baseline.TOP
-                    )
-                    y += 16
-
-                # Tap zones
-                self.draw_tap_zones("TAP HERE FOR 1 PLAYER", "TAP HERE FOR 2 PLAYERS")
-                return
-
-            # --- PLAYING states ---
-            if self.state in ["P1_PLAY", "P2_PLAY"]:
-                # Fill with dark green (fallback background)
-                with self.canvas.fill(color="darkgreen"):
-                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
-
-                # --- BIG DIAGNOSTIC TEXT ---
-                self.canvas.fill_text(
-                    "PLAYING",
-                    x=50, y=150,
-                    font=toga.Font(family="system", size=40, weight="bold"),
-                    baseline=Baseline.TOP,
-                    color="white"
-                )
-
-                # --- RED RECTANGLE AT (0,0) ---
-                with self.canvas.fill(color="red"):
-                    self.canvas.rect(0, 0, 80, 80)
-
-                # --- FOOD ---
-                with self.canvas.fill(color=self.food_color):
-                    self.canvas.rect(self.food_pos[0], self.food_pos[1],
-                                     self.grid_size, self.grid_size)
-
-                # --- SNAKE (yellow with red outline) ---
-                if self.snake:
-                    for segment in self.snake:
-                        with self.canvas.fill(color="yellow"):
-                            self.canvas.rect(segment[0], segment[1],
-                                             self.grid_size - 2, self.grid_size - 2)
-                        with self.canvas.stroke(color="red", line_width=2):
-                            self.canvas.rect(segment[0], segment[1],
-                                             self.grid_size - 2, self.grid_size - 2)
-                else:
-                    # Draw a big "NO SNAKE" message
-                    self.canvas.fill_text(
-                        "SNAKE EMPTY!",
-                        x=100, y=300,
-                        font=toga.Font(family="system", size=30, weight="bold"),
-                        baseline=Baseline.TOP,
-                        color="red"
-                    )
-
-                # Score text
-                self.canvas.fill_text(
-                    f"Level: {self.level}   Score: {self.current_score}",
-                    x=20, y=30,
-                    font=toga.Font(family="system", size=20, weight="bold"),
-                    baseline=Baseline.TOP,
-                    color="white"
-                )
-
-            # --- Other states ---
-            elif self.state == "REMATCH_PROMPT":
-                self.draw_tap_zones("TAP HERE FOR YES (REMATCH)", "TAP HERE FOR NO (MENU)")
-                self.draw_centered_text("IT'S A TIE!", "red", 32, -100)
-                self.draw_centered_text(f"Score: {self.p1_score}", "white", 20, -50)
-            elif self.state == "P2_TRANSITION":
-                self.draw_centered_text("PLAYER 1 CRASHED!", "red", 32, -100)
-                self.draw_centered_text(f"P1 Score: {self.p1_score}", "white", 20, -50)
-                self.draw_centered_text("TAP ANYWHERE FOR P2 TURN", "gray", 16, 100)
-            elif self.state == "GAME_OVER":
-                if self.multiplayer:
-                    winner = "PLAYER 1 WINS!" if self.p1_score > self.p2_score else "PLAYER 2 WINS!"
-                    self.draw_centered_text(winner, "red", 32, -100)
-                    self.draw_centered_text(f"P1: {self.p1_score}   P2: {self.p2_score}", "white", 20, -50)
-                else:
-                    self.draw_centered_text("GAME OVER", "red", 32, -100)
-                    self.draw_centered_text(f"Final Score: {self.p1_score}", "white", 20, -50)
-                self.draw_centered_text("TAP ANYWHERE TO RETURN", "gray", 16, 100)
+            # Now draw the game content (but the red background will cover it)
+            # We'll remove the red after we confirm it works.
 
             # Force native redraw on iOS
             if self.platform == 'ios':
@@ -509,28 +432,13 @@ class HungrySnake4K(toga.App):
         except Exception as e:
             self.log(f"Exception in redraw: {e}")
             self.log(traceback.format_exc())
-            traceback.print_exc()
 
-    # ---------- Helpers ----------
+    # ---------- Helpers (not used in this minimal redraw) ----------
     def draw_tap_zones(self, top_text, bottom_text):
-        with self.canvas.fill(color="rgb(40,40,40)"):
-            self.canvas.rect(0, 0, self.canvas_width, self.canvas_height / 2)
-        self.draw_centered_text(top_text, "rgb(200,200,200)", 16, -self.canvas_height / 4)
-        with self.canvas.fill(color="rgb(20,20,20)"):
-            self.canvas.rect(0, self.canvas_height / 2, self.canvas_width, self.canvas_height / 2)
-        self.draw_centered_text(bottom_text, "rgb(200,200,200)", 16, self.canvas_height / 4)
+        pass
 
     def draw_centered_text(self, text, color, size, y_offset):
-        approx_char_width = size * 0.6
-        text_width = len(text) * approx_char_width
-        x = max(0, (self.canvas_width - text_width) / 2)
-        y = (self.canvas_height / 2) + y_offset
-        self.canvas.fill_text(
-            text, x=x, y=y,
-            font=toga.Font(family="system", size=size, weight="bold"),
-            baseline=Baseline.MIDDLE,
-            color=color
-        )
+        pass
 
 def main():
     return HungrySnake4K()
