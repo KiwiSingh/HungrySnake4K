@@ -33,7 +33,7 @@ class HungrySnake4K(toga.App):
             pass
         self.log("Startup: platform = " + self.platform)
 
-        # Game settings – use safe defaults
+        # Game settings
         self.grid_size = 40
         self.DEFAULT_WIDTH = 400
         self.DEFAULT_HEIGHT = 800
@@ -56,11 +56,10 @@ class HungrySnake4K(toga.App):
         self.food_color = "white"
         self.touch_start = None
 
-        # Assets
         self.init_audio()
         self.init_backgrounds()
 
-        # Canvas with explicit background
+        # Canvas
         self.canvas = toga.Canvas(
             style=Pack(flex=1, background_color="black"),
             on_resize=self.on_resize,
@@ -68,7 +67,7 @@ class HungrySnake4K(toga.App):
             on_release=self.on_touch_up,
         )
 
-        # Debug label
+        # Debug label – now we'll also show recent log entries on the menu
         self.debug_label = toga.Label(
             "Starting...",
             style=Pack(padding=10, color="white", background_color="black", font_size=12)
@@ -79,10 +78,7 @@ class HungrySnake4K(toga.App):
         self.main_window.content = box
         self.main_window.show()
 
-        # Force initial draw
         self.redraw()
-
-        # Start game loop
         self.log("Creating game loop task")
         asyncio.create_task(self.game_loop(None))
         self.add_background_task(self.game_loop)   # fallback
@@ -96,7 +92,16 @@ class HungrySnake4K(toga.App):
         except:
             pass
 
-    # ---------- Audio (unchanged except logging) ----------
+    def get_recent_log(self, lines=10):
+        """Return the last `lines` lines of the log file as a string."""
+        try:
+            with open(self.log_path, "r") as f:
+                all_lines = f.readlines()
+            return "".join(all_lines[-lines:])
+        except:
+            return "Log not available"
+
+    # ---------- Audio (with extra logging) ----------
     def init_audio(self):
         self.audio_players = {}
         self.bg_player = None
@@ -238,9 +243,6 @@ class HungrySnake4K(toga.App):
                     self.log(f"Failed to load bg {i}: {e}")
             else:
                 self.log(f"BG file missing: {path}")
-        # If no backgrounds, create a fallback solid colour (we'll draw it in redraw)
-        if not self.backgrounds:
-            self.log("No background images found – will use black fill")
         self.randomize_background()
 
     def randomize_background(self):
@@ -248,11 +250,10 @@ class HungrySnake4K(toga.App):
             self.current_bg = random.choice(self.backgrounds)
             self.log("Randomized background")
         else:
-            self.current_bg = None   # we'll draw a fallback colour
+            self.current_bg = None
 
     # ---------- Resize ----------
     def on_resize(self, widget, width, height, **kwargs):
-        # Guard against zero dimensions
         if width > 0 and height > 0:
             self.canvas_width = width
             self.canvas_height = height
@@ -263,7 +264,6 @@ class HungrySnake4K(toga.App):
 
     # ---------- Game state ----------
     def reset_player(self):
-        # Use current canvas dimensions; if they're still 0, use defaults
         w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
         h = self.canvas_height if self.canvas_height > 0 else self.DEFAULT_HEIGHT
         center_x = (w // 2 // self.grid_size) * self.grid_size
@@ -276,7 +276,7 @@ class HungrySnake4K(toga.App):
         self.level = 1
         self.randomize_background()
         self.spawn_food()
-        self.log(f"Player reset, snake: {self.snake}, center=({center_x},{center_y})")
+        self.log(f"Player reset, snake: {self.snake}")
 
     def spawn_food(self):
         w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
@@ -293,7 +293,7 @@ class HungrySnake4K(toga.App):
         self.food_color = random.choice(["gold", "silver"]) if is_special else random.choice(
             ["white", "red", "green", "blue", "cyan", "magenta", "yellow"]
         )
-        self.log(f"Food spawned at {self.food_pos}, color {self.food_color}")
+        self.log(f"Food spawned at {self.food_pos}")
 
     # ---------- Touch ----------
     def on_touch_down(self, widget, x, y, **kwargs):
@@ -353,6 +353,9 @@ class HungrySnake4K(toga.App):
                 self.log(f"Loop alive, count {loop_count}")
             try:
                 if self.state in ["P1_PLAY", "P2_PLAY"]:
+                    if not self.snake:
+                        self.log("WARNING: snake is empty! Resetting...")
+                        self.reset_player()
                     head_x, head_y = self.snake[0]
                     new_head = (
                         head_x + self.snake_dir[0] * self.grid_size,
@@ -395,56 +398,76 @@ class HungrySnake4K(toga.App):
 
             self.canvas.clear()
 
-            # --- MENU debug screen (as before) ---
+            # --- MENU: show log and tap zones ---
             if self.state == "MENU":
+                # Dark background
                 with self.canvas.fill(color="blue"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+
+                # Show last log entries
+                log_text = self.get_recent_log(8)
                 self.canvas.fill_text(
-                    "DEBUG MENU - TAP TOP/BOTTOM",
-                    x=20, y=100,
-                    font=toga.Font(family="system", size=20, weight="bold"),
+                    "--- DEBUG LOG ---",
+                    x=10, y=30,
+                    font=toga.Font(family="system", size=14, weight="bold"),
                     baseline=Baseline.TOP
                 )
-                self.canvas.fill_text(
-                    f"Dimensions: {self.canvas_width}x{self.canvas_height}",
-                    x=20, y=140,
-                    font=toga.Font(family="system", size=16),
-                    baseline=Baseline.TOP
-                )
+                y = 60
+                for line in log_text.splitlines():
+                    self.canvas.fill_text(
+                        line,
+                        x=10, y=y,
+                        font=toga.Font(family="system", size=10),
+                        baseline=Baseline.TOP
+                    )
+                    y += 16
+
+                # Tap zones
                 self.draw_tap_zones("TAP HERE FOR 1 PLAYER", "TAP HERE FOR 2 PLAYERS")
                 return
 
-            # --- Background for playing states ---
+            # --- PLAYING states ---
             if self.state in ["P1_PLAY", "P2_PLAY"]:
-                if self.current_bg:
-                    self.canvas.draw_image(self.current_bg, x=0, y=0,
-                                           width=self.canvas_width, height=self.canvas_height)
-                else:
-                    # Fallback background: dark green gradient (so you know it's not black)
-                    with self.canvas.fill(color="darkgreen"):
-                        self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+                # Fill with dark green (fallback background)
+                with self.canvas.fill(color="darkgreen"):
+                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
-                # ----- DIAGNOSTIC: Draw a big red dot at the centre -----
-                cx = self.canvas_width // 2
-                cy = self.canvas_height // 2
+                # --- BIG DIAGNOSTIC TEXT ---
+                self.canvas.fill_text(
+                    "PLAYING",
+                    x=50, y=150,
+                    font=toga.Font(family="system", size=40, weight="bold"),
+                    baseline=Baseline.TOP,
+                    color="white"
+                )
+
+                # --- RED RECTANGLE AT (0,0) ---
                 with self.canvas.fill(color="red"):
-                    self.canvas.ellipse(cx - 10, cy - 10, 20, 20)
+                    self.canvas.rect(0, 0, 80, 80)
 
-                # ----- Draw the food -----
+                # --- FOOD ---
                 with self.canvas.fill(color=self.food_color):
                     self.canvas.rect(self.food_pos[0], self.food_pos[1],
                                      self.grid_size, self.grid_size)
 
-                # ----- Draw the snake with bright yellow outline -----
-                for segment in self.snake:
-                    # Fill with bright yellow
-                    with self.canvas.fill(color="yellow"):
-                        self.canvas.rect(segment[0], segment[1],
-                                         self.grid_size - 2, self.grid_size - 2)
-                    # Outline in red to be extra visible
-                    with self.canvas.stroke(color="red", line_width=2):
-                        self.canvas.rect(segment[0], segment[1],
-                                         self.grid_size - 2, self.grid_size - 2)
+                # --- SNAKE (yellow with red outline) ---
+                if self.snake:
+                    for segment in self.snake:
+                        with self.canvas.fill(color="yellow"):
+                            self.canvas.rect(segment[0], segment[1],
+                                             self.grid_size - 2, self.grid_size - 2)
+                        with self.canvas.stroke(color="red", line_width=2):
+                            self.canvas.rect(segment[0], segment[1],
+                                             self.grid_size - 2, self.grid_size - 2)
+                else:
+                    # Draw a big "NO SNAKE" message
+                    self.canvas.fill_text(
+                        "SNAKE EMPTY!",
+                        x=100, y=300,
+                        font=toga.Font(family="system", size=30, weight="bold"),
+                        baseline=Baseline.TOP,
+                        color="red"
+                    )
 
                 # Score text
                 self.canvas.fill_text(
@@ -452,9 +475,10 @@ class HungrySnake4K(toga.App):
                     x=20, y=30,
                     font=toga.Font(family="system", size=20, weight="bold"),
                     baseline=Baseline.TOP,
+                    color="white"
                 )
 
-            # --- Other states (REMATCH, GAME_OVER, etc.) ---
+            # --- Other states ---
             elif self.state == "REMATCH_PROMPT":
                 self.draw_tap_zones("TAP HERE FOR YES (REMATCH)", "TAP HERE FOR NO (MENU)")
                 self.draw_centered_text("IT'S A TIE!", "red", 32, -100)
@@ -473,12 +497,21 @@ class HungrySnake4K(toga.App):
                     self.draw_centered_text(f"Final Score: {self.p1_score}", "white", 20, -50)
                 self.draw_centered_text("TAP ANYWHERE TO RETURN", "gray", 16, 100)
 
+            # Force native redraw on iOS
+            if self.platform == 'ios':
+                try:
+                    from rubicon.objc import ObjCClass
+                    UIView = ObjCClass('UIView')
+                    self.canvas._impl.native.setNeedsDisplay()
+                except:
+                    pass
+
         except Exception as e:
             self.log(f"Exception in redraw: {e}")
             self.log(traceback.format_exc())
             traceback.print_exc()
 
-    # ---------- Helper drawing functions (unchanged) ----------
+    # ---------- Helpers ----------
     def draw_tap_zones(self, top_text, bottom_text):
         with self.canvas.fill(color="rgb(40,40,40)"):
             self.canvas.rect(0, 0, self.canvas_width, self.canvas_height / 2)
@@ -496,6 +529,7 @@ class HungrySnake4K(toga.App):
             text, x=x, y=y,
             font=toga.Font(family="system", size=size, weight="bold"),
             baseline=Baseline.MIDDLE,
+            color=color
         )
 
 def main():
