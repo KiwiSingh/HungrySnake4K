@@ -22,13 +22,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install pygame py2app
+          python -m pip install pygame py2app pillow
 
       - name: Build .app
         run: |
           python setup.py py2app
 
-      - name: Bundle sound assets
+      - name: Bundle game assets
         run: |
           mkdir -p "dist/Hungry Snake 4K.app/Contents/Resources/assets"
           ditto assets "dist/Hungry Snake 4K.app/Contents/Resources/assets"

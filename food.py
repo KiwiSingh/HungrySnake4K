@@ -40,6 +40,11 @@ COLORS = [
     "wheat",
 ]
 
+SPECIAL_FOOD_COLORS = {"gold", "silver"}
+ANIMATE_SPECIAL_FOOD = True
+NORMAL_SIZE = 0.5
+SPECIAL_SIZE = 0.7
+
 
 class Food(Turtle):
     def __init__(self):
@@ -47,15 +52,39 @@ class Food(Turtle):
 
         self.shape("turtle")
         self.penup()
-        self.shapesize(stretch_len=0.5, stretch_wid=0.5)
+        self.shapesize(stretch_len=NORMAL_SIZE, stretch_wid=NORMAL_SIZE)
         self.speed("fastest")
+        self.animation_tick = 0
 
         self.refresh()
 
     def refresh(self):
         self.foodcolor = random.choice(COLORS)
-        self.color(self.foodcolor)
+        self.animation_tick = 0
+
+        if self.foodcolor in SPECIAL_FOOD_COLORS:
+            self.color("white", self.foodcolor)
+            self.shapesize(stretch_len=SPECIAL_SIZE, stretch_wid=SPECIAL_SIZE)
+        else:
+            self.color(self.foodcolor)
+            self.shapesize(stretch_len=NORMAL_SIZE, stretch_wid=NORMAL_SIZE)
 
         random_x = random.randrange(-1060, 1060, 20)
         random_y = random.randrange(-1060, 1060, 20)
         self.goto(random_x, random_y)
+
+    def animate(self):
+        if not ANIMATE_SPECIAL_FOOD:
+            return
+
+        if self.foodcolor not in SPECIAL_FOOD_COLORS:
+            return
+
+        self.animation_tick += 1
+
+        if self.animation_tick % 8 < 4:
+            size = SPECIAL_SIZE
+        else:
+            size = NORMAL_SIZE
+
+        self.shapesize(stretch_len=size, stretch_wid=size)

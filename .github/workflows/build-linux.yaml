@@ -1,0 +1,57 @@
+name: Build Hungry Snake 4K — Linux
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes python3-tk tk
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pygame pyinstaller pillow
+
+      - name: Build Linux executable
+        run: |
+          pyinstaller \
+            --noconfirm \
+            --clean \
+            --windowed \
+            --onefile \
+            --name "Hungry Snake 4K" \
+            --add-data "assets:assets" \
+            --collect-all pygame \
+            --collect-all PIL \
+            main.py
+
+      - name: Package Linux release
+        run: |
+          mkdir -p "release/HungrySnake4K-2.0.1-linux-x86_64"
+          cp "dist/Hungry Snake 4K" "release/HungrySnake4K-2.0.1-linux-x86_64/"
+          chmod +x "release/HungrySnake4K-2.0.1-linux-x86_64/Hungry Snake 4K"
+          printf "2.0.1\n" > "release/HungrySnake4K-2.0.1-linux-x86_64/VERSION"
+          tar -C release -czf "HungrySnake4K-2.0.1-linux-x86_64.tar.gz" "HungrySnake4K-2.0.1-linux-x86_64"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HungrySnake4K-2.0.1-linux-x86_64
+          path: HungrySnake4K-2.0.1-linux-x86_64.tar.gz

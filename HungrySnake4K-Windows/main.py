@@ -5,6 +5,7 @@ from scoreboard import Scoreboard
 from snake import Snake
 import time
 from controller import Controller
+from background import Background
 from pathlib import Path
 import sys
 
@@ -51,6 +52,9 @@ GRID_SIZE = 20
 X_LIMIT = (screen.window_width() // 2 // GRID_SIZE) * GRID_SIZE - GRID_SIZE
 Y_LIMIT = (screen.window_height() // 2 // GRID_SIZE) * GRID_SIZE - GRID_SIZE
 
+background = Background(screen, get_resource_path)
+background.randomize()
+
 snake = Snake()
 food = Food(X_LIMIT, Y_LIMIT)
 scoreboard = Scoreboard(Y_LIMIT - 40)
@@ -69,11 +73,12 @@ game_is_on = True
 def restart_game():
     global game_is_on
 
+    background.randomize()
     snake.reset()
     food.refresh()
     scoreboard.reset()
     game_is_on = True
-    pygame.mixer.music.unpause()
+    pygame.mixer.music.play(loops=-1)
 
 
 def end_game():
@@ -81,7 +86,7 @@ def end_game():
 
     if game_is_on:
         game_is_on = False
-        pygame.mixer.music.pause()
+        pygame.mixer.music.stop()
         scoreboard.game_over()
         game_over_sound.play()
 
@@ -108,6 +113,7 @@ while True:
         continue
 
     snake.move()
+    food.animate()
 
     # Detect collision with food
 
