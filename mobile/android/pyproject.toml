@@ -20,7 +20,10 @@ orientation = "portrait"
 universal_build = true
 
 [tool.briefcase.app.HungrySnake4K.android]
-build_gradle_dependencies = []
+build_gradle_dependencies = [
+    "androidx.appcompat:appcompat:1.6.1",
+    "com.google.android.material:material:1.11.0"
+]
 supported_features = []
 
 [tool.briefcase.app.HungrySnake4K.ios]
