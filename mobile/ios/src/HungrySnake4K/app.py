@@ -44,13 +44,7 @@ class HungrySnake4K(toga.App):
         self.touch_start = None
         self.last_touch = None
 
-        # --- Audio ---
-        self.audio_players = {}
-        self.bg_player = None
-        self.audio_loaded = False
-        self.init_audio()
-
-        # Canvas
+        # ---------- UI first ----------
         self.canvas = toga.Canvas(
             style=Pack(flex=1, background_color="black"),
             on_resize=self.on_resize,
@@ -69,6 +63,13 @@ class HungrySnake4K(toga.App):
         self.main_window.content = box
         self.main_window.show()
 
+        # ---------- Now audio (safe) ----------
+        self.audio_players = {}
+        self.bg_player = None
+        self.audio_loaded = False
+        self.init_audio()   # will update debug_label
+
+        # ---------- Start game ----------
         self.redraw()
         asyncio.create_task(self.game_loop(None))
         self.add_background_task(self.game_loop)
@@ -98,7 +99,6 @@ class HungrySnake4K(toga.App):
                 self.paths.app / "Assets",          # alternative case
             ]
 
-            # Find which location has the files
             bg_path = None
             sfx_paths = {}
             for loc in possible_locations:
@@ -107,13 +107,12 @@ class HungrySnake4K(toga.App):
                 for key, fname in sfx_files.items():
                     if (loc / fname).exists():
                         sfx_paths[key] = loc / fname
-                # If we found at least one, break
                 if bg_path or sfx_paths:
                     break
 
             if not bg_path and not sfx_paths:
-                self.log("No audio files found in any location")
-                self.debug_label.text = "Audio: none found"
+                self.log("No audio files found")
+                self.debug_label.text = "Audio: none"
                 return
 
             # Platform-specific loading
@@ -132,7 +131,7 @@ class HungrySnake4K(toga.App):
                         self.bg_player.numberOfLoops = -1
                         self.bg_player.volume = 0.4
                         self.bg_player.prepareToPlay()
-                        self.log("iOS bg loaded: " + str(bg_path))
+                        self.log("iOS bg loaded")
                     else:
                         self.log("iOS bg init failed")
                 else:
@@ -168,6 +167,7 @@ class HungrySnake4K(toga.App):
             else:
                 if not PYGAME_AVAILABLE:
                     self.log("Pygame not available")
+                    self.debug_label.text = "Audio: Pygame missing"
                     return
                 pygame.mixer.init()
                 pygame.mixer.set_num_channels(8)
@@ -235,7 +235,7 @@ class HungrySnake4K(toga.App):
         except Exception as e:
             self.log(f"stop_bgm error: {e}")
 
-    # ---------- Game logic (unchanged) ----------
+    # ---------- Game logic ----------
     def on_resize(self, widget, width, height, **kwargs):
         if width > 0 and height > 0:
             self.canvas_width = width
@@ -265,6 +265,7 @@ class HungrySnake4K(toga.App):
             if self.food_pos not in self.snake:
                 break
 
+    # ---------- Touch handlers ----------
     def on_touch_down(self, widget, x, y, **kwargs):
         self.touch_start = (x, y)
         self.last_touch = (x, y)
@@ -309,6 +310,7 @@ class HungrySnake4K(toga.App):
         self.touch_start = None
         self.last_touch = None
 
+    # ---------- Game loop ----------
     async def game_loop(self, widget):
         while True:
             await asyncio.sleep(0.03)
@@ -357,6 +359,7 @@ class HungrySnake4K(toga.App):
             except Exception as e:
                 self.log(f"Loop error: {e}")
 
+    # ---------- Rendering ----------
     def redraw(self):
         try:
             self.debug_label.text = f"State:{self.state}  Score:{self.score}  W:{self.canvas_width} H:{self.canvas_height}"
