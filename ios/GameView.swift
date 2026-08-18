@@ -3,11 +3,10 @@ import UIKit
 class GameView: UIView {
     private var game: SnakeGame!
     private var displayLink: CADisplayLink!
-    private let gridSize: CGFloat = 20.0    // slower, more precise
-
-    // Double-tap menu selection (1 player vs 2 players)
+    private let gridSize: CGFloat = 20.0
     private var tapCount = 0
     private var tapTimer: Timer?
+    private var drawPromptActive = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -31,15 +30,20 @@ class GameView: UIView {
         addGestureRecognizer(tap)
     }
 
+    // MARK: - Touch Handling
+
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        let location = gesture.location(in: self)
+
         if game.state == .menu {
+            // Single vs double tap for player count
             tapCount += 1
             if tapCount == 1 {
-                tapTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
-                    guard let self = self else { return }
+                tapTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
                     // Single tap → 1 player
                     self.game.startGame(players: 1)
-                    AudioManager.shared.playSound("player1_begin")
+                    // No "player1_begin" in single‑player – instead, play nothing or a short "start" sound.
+                    // We'll just start the game without a sound.
                     self.tapCount = 0
                     self.setNeedsDisplay()
                 }
@@ -52,7 +56,25 @@ class GameView: UIView {
                 tapCount = 0
                 setNeedsDisplay()
             }
-        } else if game.state == .gameOver {
+            return
+        }
+
+        if game.state == .drawPrompt {
+            // Tap top half = Rematch, bottom half = Menu
+            if location.y < bounds.height / 2 {
+                // Rematch – restart with 2 players
+                game.startGame(players: 2)
+                AudioManager.shared.playSound("player1_begin")
+            } else {
+                // Menu – play game_over sound and go to menu
+                AudioManager.shared.playSound("game_over")
+                game.resetToMenu()
+            }
+            setNeedsDisplay()
+            return
+        }
+
+        if game.state == .gameOver {
             game.resetToMenu()
             setNeedsDisplay()
         }
@@ -75,6 +97,8 @@ class GameView: UIView {
         }
     }
 
+    // MARK: - Display Link
+
     private func setupDisplayLink() {
         displayLink = CADisplayLink(target: self, selector: #selector(update))
         displayLink.add(to: .main, forMode: .common)
@@ -84,6 +108,8 @@ class GameView: UIView {
         game.update()
         setNeedsDisplay()
     }
+
+    // MARK: - Drawing
 
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
@@ -99,10 +125,13 @@ class GameView: UIView {
         case .gameOver:
             drawGame(context)
             drawGameOver(context)
+        case .drawPrompt:
+            drawGame(context)
+            drawDrawPrompt(context)
         }
     }
 
-    // MARK: - Drawing helpers
+    // MARK: - Drawing Helpers
 
     private func drawMenu(_ context: CGContext) {
         context.setFillColor(UIColor.blue.cgColor)
@@ -126,7 +155,6 @@ class GameView: UIView {
     }
 
     private func drawGame(_ context: CGContext) {
-        // Background
         if let bg = game.currentBackground {
             bg.draw(in: bounds)
         } else {
@@ -211,5 +239,44 @@ class GameView: UIView {
         ])
         let sizeTap = attrTap.size()
         attrTap.draw(at: CGPoint(x: (bounds.width - sizeTap.width)/2, y: bounds.height/2 + 60))
+    }
+
+    private func drawDrawPrompt(_ context: CGContext) {
+        let overlay = UIBezierPath(rect: bounds)
+        context.setFillColor(UIColor(white: 0, alpha: 0.7).cgColor)
+        overlay.fill()
+
+        let drawText = "IT'S A DRAW!"
+        let attr = NSAttributedString(string: drawText, attributes: [
+            .font: UIFont.boldSystemFont(ofSize: 48),
+            .foregroundColor: UIColor.orange
+        ])
+        let size = attr.size()
+        attr.draw(at: CGPoint(x: (bounds.width - size.width)/2, y: bounds.height/2 - 100))
+
+        let scores = game.getScores()
+        let scoreText = "P1: \(scores.p1)  P2: \(scores.p2)"
+        let attrScore = NSAttributedString(string: scoreText, attributes: [
+            .font: UIFont.systemFont(ofSize: 28),
+            .foregroundColor: UIColor.white
+        ])
+        let sizeScore = attrScore.size()
+        attrScore.draw(at: CGPoint(x: (bounds.width - sizeScore.width)/2, y: bounds.height/2 - 30))
+
+        let rematchText = "Tap TOP for Rematch"
+        let attrRematch = NSAttributedString(string: rematchText, attributes: [
+            .font: UIFont.systemFont(ofSize: 24),
+            .foregroundColor: UIColor.green
+        ])
+        let sizeRematch = attrRematch.size()
+        attrRematch.draw(at: CGPoint(x: (bounds.width - sizeRematch.width)/2, y: bounds.height/2 + 40))
+
+        let menuText = "Tap BOTTOM for Menu"
+        let attrMenu = NSAttributedString(string: menuText, attributes: [
+            .font: UIFont.systemFont(ofSize: 24),
+            .foregroundColor: UIColor.red
+        ])
+        let sizeMenu = attrMenu.size()
+        attrMenu.draw(at: CGPoint(x: (bounds.width - sizeMenu.width)/2, y: bounds.height/2 + 90))
     }
 }

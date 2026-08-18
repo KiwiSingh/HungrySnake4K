@@ -11,7 +11,7 @@ enum Direction {
 }
 
 enum GameState {
-    case menu, player1Turn, player2Turn, gameOver
+    case menu, player1Turn, player2Turn, gameOver, drawPrompt
 }
 
 struct Point {
@@ -36,12 +36,13 @@ class SnakeGame {
     // Multiplayer
     private(set) var player1Score: Int = 0
     private(set) var player2Score: Int = 0
-    private var currentPlayer: Int = 1   // 1 or 2
+    private var currentPlayer: Int = 1
     private var isMultiplayer: Bool = false
 
     private var backgroundImages: [UIImage] = []
     private var moveTimer: TimeInterval = 0
     private let moveInterval: TimeInterval = 0.12   // ~8 moves per second
+    private var hasPlayedWinnerSound: Bool = false
 
     init(gridWidth: Int, gridHeight: Int, gridSize: CGFloat) {
         self.gridWidth = gridWidth
@@ -52,14 +53,12 @@ class SnakeGame {
     }
 
     private func loadBackgrounds() {
-        // Try to load from asset catalog or bundle
         for i in 1...10 {
             let name = "background_\(String(format: "%02d", i))"
             if let img = UIImage(named: name) {
                 backgroundImages.append(img)
             }
         }
-        // If none found, we'll use a solid color
     }
 
     // MARK: - Public methods
@@ -79,6 +78,7 @@ class SnakeGame {
         foodColor = .red
         currentBackground = nil
         currentPlayer = 1
+        hasPlayedWinnerSound = false
         AudioManager.shared.stopBackgroundMusic()
     }
 
@@ -87,6 +87,7 @@ class SnakeGame {
         player1Score = 0
         player2Score = 0
         currentPlayer = 1
+        hasPlayedWinnerSound = false
         state = .player1Turn
         resetPlayerState()
         AudioManager.shared.playBackgroundMusic()
@@ -95,7 +96,6 @@ class SnakeGame {
     private func resetPlayerState() {
         score = 0
         level = 1
-        // Center snake
         let centerX = CGFloat(gridWidth / 2) * gridSize
         let centerY = CGFloat(gridHeight / 2) * gridSize
         snake = [
@@ -144,7 +144,6 @@ class SnakeGame {
         if moveTimer < moveInterval { return }
         moveTimer = 0
 
-        // Apply queued direction
         snakeDirection = nextDirection
 
         guard let head = snake.first else { return }
@@ -171,7 +170,6 @@ class SnakeGame {
         snake.insert(newHead, at: 0)
 
         if abs(newHead.x - foodPosition.x) < gridSize/2 && abs(newHead.y - foodPosition.y) < gridSize/2 {
-            // Eat
             let points = foodColor == .gold ? 10 : foodColor == .silver ? 5 : 1
             score += points
             AudioManager.shared.playSound("food_blip")
@@ -186,30 +184,65 @@ class SnakeGame {
     }
 
     private func playerCrashed() {
-        AudioManager.shared.playSound("game_over")
         // Save current player's score
         if state == .player1Turn {
             player1Score = score
             if isMultiplayer {
                 state = .player2Turn
                 currentPlayer = 2
-                // Reset snake for player 2
                 resetPlayerState()
-                AudioManager.shared.playSound("player2_begin")  // optional
+                AudioManager.shared.playSound("player2_begin")
                 return
             } else {
+                // Single player – game over directly
                 state = .gameOver
                 AudioManager.shared.stopBackgroundMusic()
+                AudioManager.shared.playSound("game_over")
+                return
             }
         } else if state == .player2Turn {
             player2Score = score
-            state = .gameOver
-            AudioManager.shared.stopBackgroundMusic()
+            // Now decide outcome
+            if isMultiplayer {
+                if player1Score > player2Score {
+                    // Player 1 wins
+                    AudioManager.shared.playSound("player1_wins")
+                    // Queue game_over after a delay (but we'll let it play, and we'll set state to gameOver after a delay)
+                    // We'll handle this by setting state to gameOver but not playing game_over yet.
+                    state = .gameOver
+                    AudioManager.shared.stopBackgroundMusic()
+                    // Play game_over after winner sound finishes? Actually we want game_over to play after the winner sound.
+                    // We can schedule a delayed play of game_over. But to keep it simple, we'll play game_over immediately after winner sound? 
+                    // The requirement: "Game Over sound should trigger after the player wins sound." 
+                    // In our code, we'll play winner sound, then schedule game_over after its duration.
+                    // We can use a timer or just play game_over after 2 seconds.
+                    // For simplicity, we'll play game_over after a short delay.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        AudioManager.shared.playSound("game_over")
+                    }
+                } else if player2Score > player1Score {
+                    AudioManager.shared.playSound("player2_wins")
+                    state = .gameOver
+                    AudioManager.shared.stopBackgroundMusic()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        AudioManager.shared.playSound("game_over")
+                    }
+                } else {
+                    // Draw – show draw prompt
+                    AudioManager.shared.playSound("its_a_draw")
+                    state = .drawPrompt
+                    AudioManager.shared.stopBackgroundMusic()
+                    // Do NOT play game_over
+                    return
+                }
+            } else {
+                // Not used
+            }
         }
     }
 
     func getWinner() -> String? {
-        guard state == .gameOver else { return nil }
+        guard state == .gameOver || state == .drawPrompt else { return nil }
         if isMultiplayer {
             if player1Score > player2Score { return "Player 1" }
             else if player2Score > player1Score { return "Player 2" }

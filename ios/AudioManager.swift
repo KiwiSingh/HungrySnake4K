@@ -4,13 +4,13 @@ class AudioManager {
     static let shared = AudioManager()
     private var bgPlayer: AVAudioPlayer?
     private var soundPlayers: [String: AVAudioPlayer] = [:]
+    private var soundQueue: [String] = []
 
     private init() {
         setupAudio()
     }
 
     private func setupAudio() {
-        // Background music
         if let url = Bundle.main.url(forResource: "background_score", withExtension: "mp3") {
             do {
                 bgPlayer = try AVAudioPlayer(contentsOf: url)
@@ -22,13 +22,11 @@ class AudioManager {
             }
         }
 
-        // Sound effects
         let soundFiles = [
             "food_blip", "game_over", "player1_begin", "player1_wins",
             "player2_begin", "player2_wins", "its_a_draw"
         ]
         for name in soundFiles {
-            // try .wav first, then .mp3 if needed
             var ext = "wav"
             var url = Bundle.main.url(forResource: name, withExtension: ext)
             if url == nil {
@@ -57,7 +55,18 @@ class AudioManager {
     }
 
     func playSound(_ name: String) {
-        soundPlayers[name]?.currentTime = 0
-        soundPlayers[name]?.play()
+        // If there is already a sound playing, we might want to queue it
+        // For simplicity, we'll just play it immediately, but stop previous if needed
+        // For game_over after wins, we'll handle in GameView
+        if let player = soundPlayers[name] {
+            player.currentTime = 0
+            player.play()
+        }
+    }
+
+    func stopAllSounds() {
+        for player in soundPlayers.values {
+            player.stop()
+        }
     }
 }
