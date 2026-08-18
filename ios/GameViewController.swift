@@ -5,11 +5,8 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Fullscreen – hide status bar and home indicator
-        self.setNeedsStatusBarAppearanceUpdate()
-        self.prefersHomeIndicatorAutoHidden = true
-
-        // Prevent screen from dimming (Game Mode)
+        // Fullscreen – hide status bar (overridden below)
+        // Disable screen dimming (Game Mode)
         UIApplication.shared.isIdleTimerDisabled = true
 
         // Create and add the game view
