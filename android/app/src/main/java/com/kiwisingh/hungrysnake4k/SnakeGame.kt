@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.util.Log
 import kotlin.math.abs
 import kotlin.random.Random
 
@@ -49,11 +50,10 @@ class SnakeGame {
     }
 
     fun setGridSize(width: Int, height: Int) {
-        gridWidth = width
-        gridHeight = height
+        gridWidth = if (width < 3) 3 else width
+        gridHeight = if (height < 3) 3 else height
     }
 
-    // Added by Claude – loads backgrounds from drawable resources
     fun loadBackgrounds(context: Context) {
         for (i in 1..10) {
             val name = "background_" + String.format("%02d", i)
@@ -62,6 +62,7 @@ class SnakeGame {
                 backgroundImages.add(BitmapFactory.decodeResource(context.resources, id))
             }
         }
+        Log.d("SnakeGame", "Loaded ${backgroundImages.size} backgrounds")
     }
 
     fun resetToMenu() {
@@ -114,14 +115,16 @@ class SnakeGame {
     }
 
     private fun spawnFood() {
+        if (gridWidth < 3 || gridHeight < 3) return
         var pos: Point
-        var ok: Boolean
+        var attempts = 0
         do {
             val x = Random.nextInt(1, gridWidth - 1) * 30f
             val y = Random.nextInt(1, gridHeight - 1) * 30f
             pos = Point(x, y)
-            ok = !snake.any { it.x == pos.x && it.y == pos.y }
-        } while (!ok)
+            attempts++
+            if (attempts > 1000) break
+        } while (snake.any { it.x == pos.x && it.y == pos.y })
         food = pos
         foodColor = if (Random.nextDouble() < 0.2) {
             if (Random.nextBoolean()) Color.YELLOW else Color.GRAY // gold/silver
@@ -169,7 +172,8 @@ class SnakeGame {
 
         snake.add(0, newHead)
 
-        if (abs(newHead.x - food.x) < 15f && abs(newHead.y - food.y) < 15f) {
+        // FOOD CHECK – increased tolerance to 20f
+        if (abs(newHead.x - food.x) < 20f && abs(newHead.y - food.y) < 20f) {
             val points = when (foodColor) {
                 Color.YELLOW -> 10
                 Color.GRAY -> 5
@@ -232,7 +236,6 @@ class SnakeGame {
 
     fun getScores() = Pair(player1Score, player2Score)
 
-    // Claude's draw signature – includes gridSize parameter
     fun draw(canvas: Canvas, width: Int, height: Int, gridSize: Float) {
         if (currentBackground != null) {
             canvas.drawBitmap(currentBackground!!, null, RectF(0f, 0f, width.toFloat(), height.toFloat()), null)
