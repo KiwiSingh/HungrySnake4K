@@ -1,0 +1,30 @@
+name: HungrySnake4K
+project_name: HungrySnake4K
+targets:
+  HungrySnake4K:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - ios
+      - path: ios/Assets.xcassets
+        buildPhase: resources
+      - path: ios/Sounds
+        buildPhase: resources
+    info:
+      path: ios/Info.plist
+      properties:
+        CFBundleDisplayName: "Hungry Snake 4K"
+        CFBundleIdentifier: "com.kiwisingh.HungrySnake4K"
+        CFBundleShortVersionString: "3.0.0"
+        CFBundleVersion: "1"
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiredDeviceCapabilities: [armv7]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        CFBundleIconName: AppIcon
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kiwisingh.HungrySnake4K
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO

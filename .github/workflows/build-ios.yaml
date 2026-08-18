@@ -1,51 +1,64 @@
-name: Build Hungry Snake 4K — iOS (Unsigned)
+name: Build iOS IPA (unsigned)
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Install xcodegen
+        run: brew install xcodegen
 
-      - name: Install BeeWare
-        run: python -m pip install briefcase
+      - name: Generate Xcode project
+        run: xcodegen generate
 
-      - name: Create iOS Project
+      - name: Build for iOS (generic device)
         run: |
-          cd mobile/ios
-          briefcase create ios
-          
-      - name: Build Unsigned IPA
+          xcodebuild -project HungrySnake4K.xcodeproj \
+            -scheme HungrySnake4K \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath ./build/HungrySnake4K.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create exportOptions.plist (unsigned)
         run: |
-          cd mobile/ios/build/HungrySnake4K/ios/Xcode
-          xcodebuild -project "Hungry Snake 4K.xcodeproj" \
-                     -scheme "Hungry Snake 4K" \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     CODE_SIGN_IDENTITY="-" \
-                     EXPANDED_CODE_SIGN_IDENTITY="-" \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CONFIGURATION_BUILD_DIR=build/Release-iphoneos \
-                     clean build
-          
-          mkdir -p Payload
-          mv build/Release-iphoneos/*.app Payload/
-          zip -r "HungrySnake4K-iOS.ipa" Payload
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>development</string>
+              <key>teamID</key>
+              <string>DUMMY</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export IPA (unsigned)
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath ./build/HungrySnake4K.xcarchive \
+            -exportPath ./build \
+            -exportOptionsPlist exportOptions.plist \
+            -allowProvisioningUpdates
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: HungrySnake4K-iOS-IPA
-          path: mobile/ios/build/HungrySnake4K/ios/Xcode/HungrySnake4K-iOS.ipa
+          path: ./build/HungrySnake4K.ipa
