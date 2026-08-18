@@ -16,7 +16,7 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate
+        run: xcodegen generate --spec xcodegen.yml
 
       - name: Build for iOS (generic device)
         run: |
