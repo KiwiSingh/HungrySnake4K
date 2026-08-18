@@ -17,14 +17,24 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Generate Gradle Wrapper (if missing)
+      - name: Prepare Gradle wrapper and properties
         run: |
           cd android
+
+          # Generate wrapper if missing
           if [ ! -f gradlew ]; then
-            # Generate the wrapper using the system gradle (pre‑installed on runner)
             gradle wrapper
           fi
           chmod +x gradlew
+
+          # Ensure gradle.properties exists
+          if [ ! -f gradle.properties ]; then
+            cat > gradle.properties <<EOF
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+          fi
 
       - name: Build APK (Release)
         run: |
