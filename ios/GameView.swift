@@ -3,16 +3,17 @@ import UIKit
 class GameView: UIView {
     private var game: SnakeGame!
     private var displayLink: CADisplayLink!
-    private let gridSize: CGFloat = 30.0
-    private var touchStart: CGPoint?
-    private var lastDirection: Direction = .right
+    private let gridSize: CGFloat = 20.0    // slower, more precise
+
+    // Double-tap menu selection (1 player vs 2 players)
+    private var tapCount = 0
+    private var tapTimer: Timer?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupGame()
         setupGestures()
         setupDisplayLink()
-        AudioManager.shared.playBackgroundMusic()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -32,21 +33,37 @@ class GameView: UIView {
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         if game.state == .menu {
-            game.startGame()
-            AudioManager.shared.playSound("player1_begin")
+            tapCount += 1
+            if tapCount == 1 {
+                tapTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+                    guard let self = self else { return }
+                    // Single tap → 1 player
+                    self.game.startGame(players: 1)
+                    AudioManager.shared.playSound("player1_begin")
+                    self.tapCount = 0
+                    self.setNeedsDisplay()
+                }
+            } else if tapCount == 2 {
+                tapTimer?.invalidate()
+                tapTimer = nil
+                // Double tap → 2 players
+                game.startGame(players: 2)
+                AudioManager.shared.playSound("player1_begin")
+                tapCount = 0
+                setNeedsDisplay()
+            }
         } else if game.state == .gameOver {
             game.resetToMenu()
-            AudioManager.shared.stopBackgroundMusic()
+            setNeedsDisplay()
         }
-        setNeedsDisplay()
     }
 
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        guard game.state == .playing else { return }
+        guard game.state == .player1Turn || game.state == .player2Turn else { return }
         let velocity = gesture.velocity(in: self)
         let dx = velocity.x
         let dy = velocity.y
-        if abs(dx) < 20 && abs(dy) < 20 { return }
+        if abs(dx) < 15 && abs(dy) < 15 { return }
         var newDir: Direction
         if abs(dx) > abs(dy) {
             newDir = dx > 0 ? .right : .left
@@ -76,13 +93,16 @@ class GameView: UIView {
         switch game.state {
         case .menu:
             drawMenu(context)
-        case .playing:
+        case .player1Turn, .player2Turn:
             drawGame(context)
+            drawTurnIndicator(context)
         case .gameOver:
             drawGame(context)
             drawGameOver(context)
         }
     }
+
+    // MARK: - Drawing helpers
 
     private func drawMenu(_ context: CGContext) {
         context.setFillColor(UIColor.blue.cgColor)
@@ -96,9 +116,9 @@ class GameView: UIView {
         let size = attrTitle.size()
         attrTitle.draw(at: CGPoint(x: (bounds.width - size.width)/2, y: 100))
 
-        let instr = "Tap to start"
+        let instr = "Tap for 1 Player  |  Double tap for 2 Players"
         let attrInstr = NSAttributedString(string: instr, attributes: [
-            .font: UIFont.systemFont(ofSize: 24),
+            .font: UIFont.systemFont(ofSize: 20),
             .foregroundColor: UIColor.white
         ])
         let sizeInstr = attrInstr.size()
@@ -106,6 +126,7 @@ class GameView: UIView {
     }
 
     private func drawGame(_ context: CGContext) {
+        // Background
         if let bg = game.currentBackground {
             bg.draw(in: bounds)
         } else {
@@ -132,7 +153,7 @@ class GameView: UIView {
             context.stroke(segRect)
         }
 
-        // Score
+        // Score and Level
         let scoreText = "Level: \(game.level)  Score: \(game.score)"
         let attrScore = NSAttributedString(string: scoreText, attributes: [
             .font: UIFont.boldSystemFont(ofSize: 20),
@@ -141,28 +162,49 @@ class GameView: UIView {
         attrScore.draw(at: CGPoint(x: 20, y: 20))
     }
 
+    private func drawTurnIndicator(_ context: CGContext) {
+        let player = game.state == .player1Turn ? "1" : "2"
+        let text = "Player \(player)'s turn"
+        let attr = NSAttributedString(string: text, attributes: [
+            .font: UIFont.boldSystemFont(ofSize: 24),
+            .foregroundColor: UIColor.white
+        ])
+        let size = attr.size()
+        attr.draw(at: CGPoint(x: (bounds.width - size.width)/2, y: bounds.height - 60))
+    }
+
     private func drawGameOver(_ context: CGContext) {
         let overlay = UIBezierPath(rect: bounds)
-        context.setFillColor(UIColor(white: 0, alpha: 0.5).cgColor)
+        context.setFillColor(UIColor(white: 0, alpha: 0.6).cgColor)
         overlay.fill()
 
-        let overText = "GAME OVER"
+        let overText: String
+        if let winner = game.getWinner() {
+            if winner == "Draw" {
+                overText = "IT'S A DRAW!"
+            } else {
+                overText = "\(winner) WINS!"
+            }
+        } else {
+            overText = "GAME OVER"
+        }
         let attr = NSAttributedString(string: overText, attributes: [
             .font: UIFont.boldSystemFont(ofSize: 48),
             .foregroundColor: UIColor.red
         ])
         let size = attr.size()
-        attr.draw(at: CGPoint(x: (bounds.width - size.width)/2, y: bounds.height/2 - 60))
+        attr.draw(at: CGPoint(x: (bounds.width - size.width)/2, y: bounds.height/2 - 80))
 
-        let scoreText = "Score: \(game.score)"
+        let scores = game.getScores()
+        let scoreText = "P1: \(scores.p1)  P2: \(scores.p2)"
         let attrScore = NSAttributedString(string: scoreText, attributes: [
-            .font: UIFont.systemFont(ofSize: 30),
+            .font: UIFont.systemFont(ofSize: 28),
             .foregroundColor: UIColor.white
         ])
         let sizeScore = attrScore.size()
         attrScore.draw(at: CGPoint(x: (bounds.width - sizeScore.width)/2, y: bounds.height/2))
 
-        let tapText = "Tap to return"
+        let tapText = "Tap to return to menu"
         let attrTap = NSAttributedString(string: tapText, attributes: [
             .font: UIFont.systemFont(ofSize: 20),
             .foregroundColor: UIColor.lightGray
