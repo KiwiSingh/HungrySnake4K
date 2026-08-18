@@ -20,15 +20,15 @@ The app icon for *Hungry Snake 4K* is partially AI-generated, with manually adde
 
 ## Installation
 ### macOS
-Unzip the latest `.app.zip` file from [Releaases](https://github.com/KiwiSingh/HungrySnake4K/releases) and move the `.app` bundle to your `/Applications` folder or directory of choice. Double-click to run, go through first-time safety flow, and enjoy!
+Unzip the latest `.app.zip` file from [Releases](https://github.com/KiwiSingh/HungrySnake4K/releases) and move the `.app` bundle to your `/Applications` folder or directory of choice. Double-click to run, go through first-time safety flow, and enjoy!
 ### Windows
-Download the latest `.exe` file from [Releaases](https://github.com/KiwiSingh/HungrySnake4K/releases). Copy the `.exe` file to `C:/Program Files`, `C:/Program Files (x86)`, or your directory of choice. Also create a Desktop shortcut, and a Quick Launch icon, for good measure.
+Download the latest `.exe` file from [Releases](https://github.com/KiwiSingh/HungrySnake4K/releases). Copy the `.exe` file to `C:/Program Files`, `C:/Program Files (x86)`, or your directory of choice. Also create a Desktop shortcut, and a Quick Launch icon, for good measure.
 ### Linux
-Unzip the latest zip file from [Releaases](https://github.com/KiwiSingh/HungrySnake4K/releases), and then extract the tarball inside. The resulting directory should contain a version file and a Unix executable. Run the executable directly through your terminal emulator of choice.
+Unzip the latest zip file from [Releases](https://github.com/KiwiSingh/HungrySnake4K/releases), and then extract the tarball inside. The resulting directory should contain a version file and a Unix executable. Run the executable directly through your terminal emulator of choice.
 ### iOS
-Download the latest `.ipa.zip` file from [Releaases](https://github.com/KiwiSingh/HungrySnake4K/releases), unzip it, and install the resulting IPA using a sideloading method of your choice. I strongly recommend using [AltStore](https://altstore.io) or [SideStore](https://sidestore.io) if on a non-jailbroken device. Otherwise, for legacy (jailbroken) devices, use [TrollStore](https://github.com/opa334/TrollStore) instead.
+Download the latest `.ipa.zip` file from [Releases](https://github.com/KiwiSingh/HungrySnake4K/releases), unzip it, and install the resulting IPA using a sideloading method of your choice. I strongly recommend using [AltStore](https://altstore.io) or [SideStore](https://sidestore.io) if on a non-jailbroken device. Otherwise, for legacy (jailbroken) devices, use [TrollStore](https://github.com/opa334/TrollStore) instead.
 ### Android
-Download the latest APK (when available) from [Releaases](https://github.com/KiwiSingh/HungrySnake4K/releases), copy it to your phone, go through the usual "Unknown sources" scare screen, deal with Play Protect shenanigans, install the APK, and enjoy the game!
+Download the latest APK (when available) from [Releases](https://github.com/KiwiSingh/HungrySnake4K/releases), copy it to your phone, go through the usual "Unknown sources" scare screen, deal with Play Protect shenanigans, install the APK, and enjoy the game!
 
 ## Testing
 This game has been tested natively on an M3 MacBook Air with 16 gb of unified memory. The Windows version has been tested inside of CrossOver Preview 26. However, there might still be gaps in the UX that might need addressing. See the next section.
