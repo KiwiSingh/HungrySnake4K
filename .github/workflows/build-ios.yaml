@@ -30,32 +30,12 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Create exportOptions.plist (unsigned)
+      - name: Package unsigned IPA
         run: |
-          cat > exportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>development</string>
-              <key>teamID</key>
-              <string>DUMMY</string>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>provisioningProfiles</key>
-              <dict/>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Export IPA (unsigned)
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath ./build/HungrySnake4K.xcarchive \
-            -exportPath ./build \
-            -exportOptionsPlist exportOptions.plist \
-            -allowProvisioningUpdates
+          mkdir -p ./build/Payload
+          cp -R ./build/HungrySnake4K.xcarchive/Products/Applications/HungrySnake4K.app ./build/Payload/
+          cd ./build
+          zip -r HungrySnake4K.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
