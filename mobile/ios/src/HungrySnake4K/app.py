@@ -31,7 +31,7 @@ class HungrySnake4K(toga.App):
         self.log("Startup: platform = " + self.platform)
 
         # Game settings – faster & more responsive
-        self.grid_size = 30                # smaller = faster movement
+        self.grid_size = 30
         self.DEFAULT_WIDTH = 400
         self.DEFAULT_HEIGHT = 800
         self.canvas_width = self.DEFAULT_WIDTH
@@ -66,11 +66,11 @@ class HungrySnake4K(toga.App):
         self.main_window.content = box
         self.main_window.show()
 
-        # Audio (now safe)
+        # Audio (now with iOS bundle support)
         self.audio_players = {}
         self.bg_player = None
         self.audio_loaded = False
-        self.init_audio()   # will set debug_label
+        self.init_audio()
 
         self.redraw()
         asyncio.create_task(self.game_loop(None))
@@ -83,47 +83,23 @@ class HungrySnake4K(toga.App):
         except:
             pass
 
-    # ---------- Audio with exhaustive path detection ----------
+    # ---------- Audio with iOS bundle support ----------
     def init_audio(self):
         try:
             sfx_files = {
                 "food_blip": "food_blip.wav",
                 "game_over": "game_over.wav",
                 "player1_begin": "player1_begin.wav",
+                "player1_wins": "player1_wins.wav",
+                "player2_begin": "player2_begin.wav",
+                "player2_wins": "player2_wins.wav",
+                "its_a_draw": "its_a_draw.wav",
             }
             bg_file = "background_score.mp3"
-
-            # Possible locations in the app bundle
-            possible_locations = [
-                self.paths.app,                     # root
-                self.paths.app / "assets",          # typical
-                self.paths.app / "Assets",
-                self.paths.app / "Resources",
-                self.paths.app / "data",
-            ]
 
             bg_path = None
             sfx_paths = {}
 
-            # Try each location and collect what we find
-            for loc in possible_locations:
-                self.log(f"Checking: {loc}")
-                if (loc / bg_file).exists():
-                    bg_path = loc / bg_file
-                    self.log(f"Found bg at {bg_path}")
-                for key, fname in sfx_files.items():
-                    p = loc / fname
-                    if p.exists():
-                        sfx_paths[key] = p
-                        self.log(f"Found {key} at {p}")
-
-            # If nothing found, abort
-            if not bg_path and not sfx_paths:
-                self.log("No audio files found")
-                self.debug_label.text = "Audio: none found"
-                return
-
-            # Platform init
             if self.platform == 'ios':
                 from rubicon.objc import ObjCClass
                 from ctypes import cdll
@@ -131,22 +107,70 @@ class HungrySnake4K(toga.App):
                 cdll.LoadLibrary(find_library('AVFoundation'))
                 AVAudioPlayer = ObjCClass('AVAudioPlayer')
                 NSURL = ObjCClass('NSURL')
+                NSBundle = ObjCClass('NSBundle')
+                NSError = ObjCClass('NSError')
 
+                # Use NSBundle to locate files (more reliable)
+                bundle = NSBundle.mainBundle()
+                bg_path = None
+                if bundle.pathForResource_ofType_("background_score", "mp3"):
+                    bg_path = bundle.pathForResource_ofType_("background_score", "mp3")
+                    self.log(f"BG found via bundle: {bg_path}")
+
+                for key, fname in sfx_files.items():
+                    # Remove extension for resource name
+                    name, ext = fname.rsplit('.', 1)
+                    path = bundle.pathForResource_ofType_(name, ext)
+                    if path:
+                        sfx_paths[key] = path
+                        self.log(f"{key} found via bundle: {path}")
+
+                # If bundle fails, fall back to manual path search
+                if not bg_path and not sfx_paths:
+                    self.log("Bundle lookup failed; trying manual paths")
+                    possible_locations = [
+                        self.paths.app,
+                        self.paths.app / "assets",
+                        self.paths.app / "Assets",
+                    ]
+                    for loc in possible_locations:
+                        if (loc / bg_file).exists():
+                            bg_path = str(loc / bg_file)
+                            self.log(f"BG found manually: {bg_path}")
+                        for key, fname in sfx_files.items():
+                            p = loc / fname
+                            if p.exists():
+                                sfx_paths[key] = str(p)
+                                self.log(f"{key} found manually: {p}")
+
+                if not bg_path and not sfx_paths:
+                    self.log("No audio files found")
+                    self.debug_label.text = "Audio: none found"
+                    return
+
+                # Load background music
                 if bg_path:
-                    url = NSURL.fileURLWithPath_(str(bg_path))
-                    self.bg_player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
-                    if self.bg_player:
+                    url = NSURL.fileURLWithPath_(bg_path)
+                    error = NSError.alloc().init()
+                    self.bg_player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, error)
+                    if error.code() != 0:
+                        self.log(f"BG error: {error.localizedDescription()}")
+                    elif self.bg_player:
                         self.bg_player.numberOfLoops = -1
                         self.bg_player.volume = 0.4
                         self.bg_player.prepareToPlay()
                         self.log("iOS bg loaded")
                     else:
-                        self.log("iOS bg init failed (AVAudioPlayer returned nil)")
+                        self.log("iOS bg init failed (player is nil)")
 
+                # Load sound effects
                 for key, path in sfx_paths.items():
-                    url = NSURL.fileURLWithPath_(str(path))
-                    player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, None)
-                    if player:
+                    url = NSURL.fileURLWithPath_(path)
+                    error = NSError.alloc().init()
+                    player = AVAudioPlayer.alloc().initWithContentsOfURL_error_(url, error)
+                    if error.code() != 0:
+                        self.log(f"{key} error: {error.localizedDescription()}")
+                    elif player:
                         player.volume = 0.8
                         player.prepareToPlay()
                         self.audio_players[key] = player
@@ -154,9 +178,32 @@ class HungrySnake4K(toga.App):
                     else:
                         self.log(f"iOS SFX init failed: {key}")
 
+                if self.audio_players or self.bg_player:
+                    self.audio_loaded = True
+                    self.debug_label.text = "Audio: OK"
+                else:
+                    self.debug_label.text = "Audio: load failed"
+
             elif self.platform == 'android':
                 from java import jclass
                 MediaPlayer = jclass('android.media.MediaPlayer')
+                # Android path detection (similar)
+                possible_locations = [
+                    self.paths.app / "assets",
+                    self.paths.app,
+                ]
+                for loc in possible_locations:
+                    if (loc / bg_file).exists():
+                        bg_path = loc / bg_file
+                        self.log(f"Android BG found: {bg_path}")
+                    for key, fname in sfx_files.items():
+                        p = loc / fname
+                        if p.exists():
+                            sfx_paths[key] = p
+                            self.log(f"Android {key} found: {p}")
+                    if bg_path or sfx_paths:
+                        break
+
                 if bg_path:
                     self.bg_player = MediaPlayer()
                     self.bg_player.setDataSource(str(bg_path))
@@ -172,26 +219,39 @@ class HungrySnake4K(toga.App):
                     self.audio_players[key] = player
                     self.log(f"Android SFX loaded: {key}")
 
+                if self.audio_players or self.bg_player:
+                    self.audio_loaded = True
+                    self.debug_label.text = "Audio: OK"
+
             else:
+                # Desktop: Pygame
                 if not PYGAME_AVAILABLE:
                     self.log("Pygame not available")
                     self.debug_label.text = "Audio: Pygame missing"
                     return
                 pygame.mixer.init()
                 pygame.mixer.set_num_channels(8)
-                if bg_path:
-                    pygame.mixer.music.load(str(bg_path))
-                    pygame.mixer.music.set_volume(0.4)
-                    self.log("Desktop bg loaded")
-                for key, path in sfx_paths.items():
-                    snd = pygame.mixer.Sound(str(path))
-                    snd.set_volume(0.8)
-                    self.audio_players[key] = snd
-                    self.log(f"Desktop SFX loaded: {key}")
-
-            self.audio_loaded = True
-            self.debug_label.text = "Audio: OK"
-            self.log("Audio init complete")
+                possible_locations = [
+                    self.paths.app,
+                    self.paths.app / "assets",
+                ]
+                for loc in possible_locations:
+                    if (loc / bg_file).exists():
+                        pygame.mixer.music.load(str(loc / bg_file))
+                        pygame.mixer.music.set_volume(0.4)
+                        self.log("Desktop bg loaded")
+                    for key, fname in sfx_files.items():
+                        p = loc / fname
+                        if p.exists():
+                            snd = pygame.mixer.Sound(str(p))
+                            snd.set_volume(0.8)
+                            self.audio_players[key] = snd
+                            self.log(f"Desktop SFX loaded: {key}")
+                    if self.audio_players or pygame.mixer.music.get_busy():
+                        break
+                if self.audio_players:
+                    self.audio_loaded = True
+                    self.debug_label.text = "Audio: OK"
 
         except Exception as e:
             self.log(f"Audio init error: {e}")
@@ -274,10 +334,23 @@ class HungrySnake4K(toga.App):
             if self.food_pos not in self.snake:
                 break
 
-    # ---------- Touch handlers (very responsive) ----------
+    # ---------- Touch handlers (ultra-responsive) ----------
     def on_touch_down(self, widget, x, y, **kwargs):
         self.touch_start = (x, y)
         self.last_touch = (x, y)
+
+        # INSTANT direction change on touch down
+        if self.state == "PLAY" and self.snake:
+            head_x, head_y = self.snake[0]
+            dx = x - head_x
+            dy = y - head_y
+            if abs(dx) > 20 or abs(dy) > 20:
+                if abs(dx) > abs(dy):
+                    new_dir = (1, 0) if dx > 0 else (-1, 0)
+                else:
+                    new_dir = (0, 1) if dy > 0 else (0, -1)
+                if new_dir[0] != -self.snake_dir[0] or new_dir[1] != -self.snake_dir[1]:
+                    self.next_dir = new_dir
 
         if self.state == "MENU":
             self.reset_player()
@@ -304,8 +377,8 @@ class HungrySnake4K(toga.App):
         dy = y - self.last_touch[1]
         self.last_touch = (x, y)
 
-        # Ultra‑sensitive: change direction on even tiny movements
-        if abs(dx) < 5 and abs(dy) < 5:
+        # Ultra-sensitive: any movement triggers a turn
+        if abs(dx) < 3 and abs(dy) < 3:
             return
 
         if abs(dx) > abs(dy):
