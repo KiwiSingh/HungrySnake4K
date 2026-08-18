@@ -15,7 +15,7 @@ class HungrySnake4K(toga.App):
         else:
             self.platform = 'desktop'
 
-        # Optional log (not needed but kept)
+        # Optional log
         self.log_path = self.paths.data / "debug.log"
         try:
             with open(self.log_path, "w") as f:
@@ -29,9 +29,11 @@ class HungrySnake4K(toga.App):
         self.canvas_width = self.DEFAULT_WIDTH
         self.canvas_height = self.DEFAULT_HEIGHT
 
-        self.state = "MENU"          # MENU, PLAY, GAME_OVER
+        self.state = "MENU"
         self.snake = []
         self.snake_dir = (1, 0)
+        # We'll buffer one direction change per frame
+        self.next_dir = None
         self.food_pos = (0, 0)
         self.score = 0
         self.touch_start = None
@@ -43,7 +45,6 @@ class HungrySnake4K(toga.App):
             on_release=self.on_touch_up,
         )
 
-        # Debug label – we will show score and state here (no canvas text)
         self.debug_label = toga.Label(
             "Starting...",
             style=Pack(padding=10, color="white", background_color="black", font_size=12)
@@ -71,6 +72,7 @@ class HungrySnake4K(toga.App):
         center_y = (h // 2 // self.grid_size) * self.grid_size
         self.snake = [(center_x - i * self.grid_size, center_y) for i in range(3)]
         self.snake_dir = (1, 0)
+        self.next_dir = None
         self.score = 0
         self.spawn_food()
 
@@ -86,9 +88,23 @@ class HungrySnake4K(toga.App):
             if self.food_pos not in self.snake:
                 break
 
-    # --- Touch ---
+    # --- Touch: direction on touch_down for instant response ---
     def on_touch_down(self, widget, x, y, **kwargs):
         self.touch_start = (x, y)
+
+        if self.state == "PLAY" and self.snake:
+            # Compute vector from head to touch point
+            head_x, head_y = self.snake[0]
+            dx = x - head_x
+            dy = y - head_y
+            if abs(dx) > 20 or abs(dy) > 20:
+                if abs(dx) > abs(dy):
+                    new_dir = (1, 0) if dx > 0 else (-1, 0)
+                else:
+                    new_dir = (0, 1) if dy > 0 else (0, -1)
+                # Prevent 180° reversal and buffer the change
+                if new_dir[0] != -self.snake_dir[0] or new_dir[1] != -self.snake_dir[1]:
+                    self.next_dir = new_dir
 
     def on_touch_up(self, widget, x, y, **kwargs):
         if not self.touch_start:
@@ -103,32 +119,22 @@ class HungrySnake4K(toga.App):
             self.redraw()
             return
 
-        if self.state == "PLAY":
-            # Lower threshold for responsive turns
-            if abs(dx) > 20 or abs(dy) > 20:
-                if abs(dx) > abs(dy):
-                    if dx > 0 and self.snake_dir != (-1, 0):
-                        self.snake_dir = (1, 0)
-                    elif dx < 0 and self.snake_dir != (1, 0):
-                        self.snake_dir = (-1, 0)
-                else:
-                    if dy > 0 and self.snake_dir != (0, -1):
-                        self.snake_dir = (0, 1)
-                    elif dy < 0 and self.snake_dir != (0, 1):
-                        self.snake_dir = (0, -1)
-
-        elif self.state == "GAME_OVER":
+        if self.state == "GAME_OVER":
             self.state = "MENU"
 
         self.touch_start = None
         self.redraw()
 
-    # --- Game Loop ---
     async def game_loop(self, widget):
         while True:
-            await asyncio.sleep(0.05)   # 20 FPS
+            await asyncio.sleep(0.03)   # ~33 FPS – smoother
             try:
                 if self.state == "PLAY":
+                    # Apply buffered direction change
+                    if self.next_dir:
+                        self.snake_dir = self.next_dir
+                        self.next_dir = None
+
                     if not self.snake:
                         self.reset_player()
                     head_x, head_y = self.snake[0]
@@ -161,22 +167,19 @@ class HungrySnake4K(toga.App):
 
                 self.redraw()
             except Exception:
-                pass   # Silently ignore to avoid crashes; debug label will show error
+                pass   # silent for stability
 
-    # --- Rendering ---
     def redraw(self):
         try:
-            # Update debug label with state and score
             self.debug_label.text = f"State:{self.state}  Score:{self.score}  W:{self.canvas_width} H:{self.canvas_height}"
 
-            # Clear
             with self.canvas.fill(color="black"):
                 self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
             if self.state == "MENU":
                 with self.canvas.fill(color="blue"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
-                # Visual cue: a small white rectangle in center as a tap indicator
+                # Tap indicator
                 with self.canvas.fill(color="white"):
                     self.canvas.rect(self.canvas_width//2 - 40, self.canvas_height//2 - 20, 80, 40)
 
@@ -199,7 +202,7 @@ class HungrySnake4K(toga.App):
                 with self.canvas.fill(color="red"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
-            # Force redraw on iOS
+            # Force native redraw on iOS
             if self.platform == 'ios':
                 try:
                     from rubicon.objc import ObjCClass
