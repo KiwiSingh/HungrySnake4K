@@ -1,38 +1,32 @@
-name: Build Hungry Snake 4K — Android
+name: Build Android APK
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
-          python-version: "3.11"
+          java-version: '17'
+          distribution: 'temurin'
 
-      - name: Install System Dependencies
-        run: sudo apt-get update && sudo apt-get install -y default-jdk
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
 
-      - name: Install BeeWare
-        run: python -m pip install briefcase
-
-      - name: Build Android APK
+      - name: Build APK (Release)
         run: |
-          cd mobile/android
-          briefcase create android
-          briefcase build android
-          briefcase package android -p debug-apk
+          cd android
+          ./gradlew assembleRelease
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: HungrySnake4K-Android-APK
-          path: mobile/android/dist/*.apk
+          name: HungrySnake4K-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
