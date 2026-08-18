@@ -15,13 +15,13 @@ class HungrySnake4K(toga.App):
         else:
             self.platform = 'desktop'
 
+        # Optional log (not needed but kept)
         self.log_path = self.paths.data / "debug.log"
         try:
             with open(self.log_path, "w") as f:
                 f.write("=== App started ===\n")
         except:
             pass
-        self.log("Startup: platform = " + self.platform)
 
         self.grid_size = 40
         self.DEFAULT_WIDTH = 400
@@ -29,7 +29,7 @@ class HungrySnake4K(toga.App):
         self.canvas_width = self.DEFAULT_WIDTH
         self.canvas_height = self.DEFAULT_HEIGHT
 
-        self.state = "MENU"
+        self.state = "MENU"          # MENU, PLAY, GAME_OVER
         self.snake = []
         self.snake_dir = (1, 0)
         self.food_pos = (0, 0)
@@ -43,6 +43,7 @@ class HungrySnake4K(toga.App):
             on_release=self.on_touch_up,
         )
 
+        # Debug label – we will show score and state here (no canvas text)
         self.debug_label = toga.Label(
             "Starting...",
             style=Pack(padding=10, color="white", background_color="black", font_size=12)
@@ -57,18 +58,10 @@ class HungrySnake4K(toga.App):
         asyncio.create_task(self.game_loop(None))
         self.add_background_task(self.game_loop)
 
-    def log(self, msg):
-        try:
-            with open(self.log_path, "a") as f:
-                f.write(f"{msg}\n")
-        except:
-            pass
-
     def on_resize(self, widget, width, height, **kwargs):
         if width > 0 and height > 0:
             self.canvas_width = width
             self.canvas_height = height
-            self.log(f"Resize: {width}x{height}")
         self.redraw()
 
     def reset_player(self):
@@ -80,7 +73,6 @@ class HungrySnake4K(toga.App):
         self.snake_dir = (1, 0)
         self.score = 0
         self.spawn_food()
-        self.log(f"Snake initialized: {self.snake}")
 
     def spawn_food(self):
         w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
@@ -93,56 +85,48 @@ class HungrySnake4K(toga.App):
             self.food_pos = (fx, fy)
             if self.food_pos not in self.snake:
                 break
-        self.log(f"Food at {self.food_pos}")
 
     # --- Touch ---
     def on_touch_down(self, widget, x, y, **kwargs):
         self.touch_start = (x, y)
 
-        # Immediate direction change on touch down (snappier)
-        if self.state == "PLAY" and self.touch_start:
-            # We'll compute direction from touch point relative to current head? 
-            # But we need the swipe vector; we only have one point. 
-            # Instead, we'll store the touch start and compute direction on touch_up.
-            # However, to make it faster, we can set direction on touch_up with a smaller threshold.
-            pass
-
     def on_touch_up(self, widget, x, y, **kwargs):
         if not self.touch_start:
             return
-
         dx = x - self.touch_start[0]
         dy = y - self.touch_start[1]
 
         if self.state == "MENU":
             self.reset_player()
             self.state = "PLAY"
-            self.log("Game started")
             self.touch_start = None
             self.redraw()
             return
 
         if self.state == "PLAY":
-            # Lower threshold to 20px for more responsive direction change
+            # Lower threshold for responsive turns
             if abs(dx) > 20 or abs(dy) > 20:
                 if abs(dx) > abs(dy):
-                    if dx > 0 and self.snake_dir != (-1, 0): self.snake_dir = (1, 0)
-                    elif dx < 0 and self.snake_dir != (1, 0): self.snake_dir = (-1, 0)
+                    if dx > 0 and self.snake_dir != (-1, 0):
+                        self.snake_dir = (1, 0)
+                    elif dx < 0 and self.snake_dir != (1, 0):
+                        self.snake_dir = (-1, 0)
                 else:
-                    if dy > 0 and self.snake_dir != (0, -1): self.snake_dir = (0, 1)
-                    elif dy < 0 and self.snake_dir != (0, 1): self.snake_dir = (0, -1)
+                    if dy > 0 and self.snake_dir != (0, -1):
+                        self.snake_dir = (0, 1)
+                    elif dy < 0 and self.snake_dir != (0, 1):
+                        self.snake_dir = (0, -1)
 
         elif self.state == "GAME_OVER":
             self.state = "MENU"
-            self.log("Back to menu")
 
         self.touch_start = None
         self.redraw()
 
+    # --- Game Loop ---
     async def game_loop(self, widget):
-        self.log("game_loop started")
         while True:
-            await asyncio.sleep(0.05)   # 20 FPS – smoother
+            await asyncio.sleep(0.05)   # 20 FPS
             try:
                 if self.state == "PLAY":
                     if not self.snake:
@@ -158,13 +142,11 @@ class HungrySnake4K(toga.App):
                     if (new_head[0] < 0 or new_head[0] >= w or
                         new_head[1] < 0 or new_head[1] >= h):
                         self.state = "GAME_OVER"
-                        self.log("Game over (wall)")
                         self.redraw()
                         continue
 
                     if new_head in self.snake:
                         self.state = "GAME_OVER"
-                        self.log("Game over (self)")
                         self.redraw()
                         continue
 
@@ -173,80 +155,49 @@ class HungrySnake4K(toga.App):
                     if (abs(new_head[0] - self.food_pos[0]) < self.grid_size and
                         abs(new_head[1] - self.food_pos[1]) < self.grid_size):
                         self.score += 1
-                        self.log(f"Score: {self.score}")
                         self.spawn_food()
                     else:
                         self.snake.pop()
 
                 self.redraw()
-            except Exception as e:
-                self.log(f"Loop exception: {e}")
-                self.log(traceback.format_exc())
+            except Exception:
+                pass   # Silently ignore to avoid crashes; debug label will show error
 
+    # --- Rendering ---
     def redraw(self):
         try:
-            self.debug_label.text = f"State:{self.state} W:{self.canvas_width} H:{self.canvas_height} Score:{self.score}"
+            # Update debug label with state and score
+            self.debug_label.text = f"State:{self.state}  Score:{self.score}  W:{self.canvas_width} H:{self.canvas_height}"
 
+            # Clear
             with self.canvas.fill(color="black"):
                 self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
             if self.state == "MENU":
                 with self.canvas.fill(color="blue"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
-
-                # Simple menu text
-                self.canvas.fill_text(
-                    "HUNGRY SNAKE 4K",
-                    x=50, y=200,
-                    font=toga.Font(size=24, weight="bold")
-                )
-                self.canvas.fill_text(
-                    "TAP TO START",
-                    x=80, y=300,
-                    font=toga.Font(size=18)
-                )
+                # Visual cue: a small white rectangle in center as a tap indicator
+                with self.canvas.fill(color="white"):
+                    self.canvas.rect(self.canvas_width//2 - 40, self.canvas_height//2 - 20, 80, 40)
 
             elif self.state == "PLAY":
                 with self.canvas.fill(color="darkgreen"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
-                # Food
+                # Food (red)
                 with self.canvas.fill(color="red"):
                     self.canvas.rect(self.food_pos[0], self.food_pos[1],
                                      self.grid_size, self.grid_size)
 
-                # Snake
+                # Snake (yellow with a slight border)
                 for seg in self.snake:
                     with self.canvas.fill(color="yellow"):
                         self.canvas.rect(seg[0], seg[1],
                                          self.grid_size - 2, self.grid_size - 2)
 
-                # Score text (no color or baseline)
-                self.canvas.fill_text(
-                    f"Score: {self.score}",
-                    x=20, y=30,
-                    font=toga.Font(size=18, weight="bold")
-                )
-
             elif self.state == "GAME_OVER":
                 with self.canvas.fill(color="red"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
-
-                self.canvas.fill_text(
-                    "GAME OVER",
-                    x=80, y=200,
-                    font=toga.Font(size=30, weight="bold")
-                )
-                self.canvas.fill_text(
-                    f"Score: {self.score}",
-                    x=100, y=280,
-                    font=toga.Font(size=20)
-                )
-                self.canvas.fill_text(
-                    "TAP TO MENU",
-                    x=100, y=360,
-                    font=toga.Font(size=16)
-                )
 
             # Force redraw on iOS
             if self.platform == 'ios':
@@ -258,8 +209,6 @@ class HungrySnake4K(toga.App):
                     pass
 
         except Exception as e:
-            self.log(f"redraw exception: {e}")
-            self.log(traceback.format_exc())
             self.debug_label.text = f"ERROR: {str(e)[:50]}"
 
 def main():
