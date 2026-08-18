@@ -23,18 +23,22 @@ class HungrySnake4K(toga.App):
             pass
         self.log("Startup: platform = " + self.platform)
 
+        # Game constants
         self.grid_size = 40
         self.DEFAULT_WIDTH = 400
         self.DEFAULT_HEIGHT = 800
         self.canvas_width = self.DEFAULT_WIDTH
         self.canvas_height = self.DEFAULT_HEIGHT
 
-        self.state = "MENU"
-        self.snake = [(200, 400), (160, 400), (120, 400)]  # dummy snake
-        self.snake_dir = (1, 0)  # moving right
-        self.food_pos = (300, 300)
-        self.food_color = "red"
+        # State
+        self.state = "MENU"   # MENU, PLAY, GAME_OVER
+        self.snake = []
+        self.snake_dir = (1, 0)
+        self.food_pos = (0, 0)
+        self.score = 0
+        self.touch_start = None
 
+        # Canvas
         self.canvas = toga.Canvas(
             style=Pack(flex=1, background_color="black"),
             on_resize=self.on_resize,
@@ -55,8 +59,9 @@ class HungrySnake4K(toga.App):
         self.redraw()
 
         # Start game loop
+        self.log("Creating game loop task")
         asyncio.create_task(self.game_loop(None))
-        self.log("Startup complete")
+        self.add_background_task(self.game_loop)
 
     def log(self, msg):
         try:
@@ -69,7 +74,32 @@ class HungrySnake4K(toga.App):
         if width > 0 and height > 0:
             self.canvas_width = width
             self.canvas_height = height
+            self.log(f"Resize: {width}x{height}")
         self.redraw()
+
+    def reset_player(self):
+        w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
+        h = self.canvas_height if self.canvas_height > 0 else self.DEFAULT_HEIGHT
+        center_x = (w // 2 // self.grid_size) * self.grid_size
+        center_y = (h // 2 // self.grid_size) * self.grid_size
+        self.snake = [(center_x - i * self.grid_size, center_y) for i in range(3)]
+        self.snake_dir = (1, 0)
+        self.score = 0
+        self.spawn_food()
+        self.log(f"Snake initialized: {self.snake}")
+
+    def spawn_food(self):
+        w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
+        h = self.canvas_height if self.canvas_height > 0 else self.DEFAULT_HEIGHT
+        max_x = max(1, int(w // self.grid_size) - 2)
+        max_y = max(1, int(h // self.grid_size) - 2)
+        while True:
+            fx = random.randint(1, max_x) * self.grid_size
+            fy = random.randint(1, max_y) * self.grid_size
+            self.food_pos = (fx, fy)
+            if self.food_pos not in self.snake:
+                break
+        self.log(f"Food at {self.food_pos}")
 
     def on_touch_down(self, widget, x, y, **kwargs):
         self.touch_start = (x, y)
@@ -77,13 +107,34 @@ class HungrySnake4K(toga.App):
     def on_touch_up(self, widget, x, y, **kwargs):
         if not self.touch_start:
             return
-        # Toggle state on touch
+        dx = x - self.touch_start[0]
+        dy = y - self.touch_start[1]
+
         if self.state == "MENU":
+            # Any touch starts the game
+            self.reset_player()
             self.state = "PLAY"
-        else:
+            self.log("Game started")
+            self.touch_start = None
+            self.redraw()
+            return
+
+        if self.state == "PLAY":
+            # Swipe to change direction
+            if abs(dx) > 30 or abs(dy) > 30:
+                if abs(dx) > abs(dy):
+                    if dx > 0 and self.snake_dir != (-1, 0): self.snake_dir = (1, 0)
+                    elif dx < 0 and self.snake_dir != (1, 0): self.snake_dir = (-1, 0)
+                else:
+                    if dy > 0 and self.snake_dir != (0, -1): self.snake_dir = (0, 1)
+                    elif dy < 0 and self.snake_dir != (0, 1): self.snake_dir = (0, -1)
+        elif self.state == "GAME_OVER":
+            # Tap to go back to menu
             self.state = "MENU"
+            self.log("Back to menu")
+
         self.touch_start = None
-        # No need to redraw here, loop does it
+        self.redraw()
 
     async def game_loop(self, widget):
         self.log("game_loop started")
@@ -91,57 +142,86 @@ class HungrySnake4K(toga.App):
             await asyncio.sleep(0.08)
             try:
                 if self.state == "PLAY":
-                    # Move snake
-                    head = self.snake[0]
-                    new_head = (head[0] + self.snake_dir[0]*self.grid_size,
-                                head[1] + self.snake_dir[1]*self.grid_size)
-                    # Wrap around or simple move (no collision for now)
+                    if not self.snake:
+                        self.reset_player()
+                    head_x, head_y = self.snake[0]
+                    new_head = (
+                        head_x + self.snake_dir[0] * self.grid_size,
+                        head_y + self.snake_dir[1] * self.grid_size
+                    )
+                    w = self.canvas_width if self.canvas_width > 0 else self.DEFAULT_WIDTH
+                    h = self.canvas_height if self.canvas_height > 0 else self.DEFAULT_HEIGHT
+
+                    # Wall collision
+                    if (new_head[0] < 0 or new_head[0] >= w or
+                        new_head[1] < 0 or new_head[1] >= h):
+                        self.state = "GAME_OVER"
+                        self.log("Game over (wall)")
+                        self.redraw()
+                        continue
+
+                    # Self collision
+                    if new_head in self.snake:
+                        self.state = "GAME_OVER"
+                        self.log("Game over (self)")
+                        self.redraw()
+                        continue
+
                     self.snake.insert(0, new_head)
-                    self.snake.pop()
-                    # Check if head on food
+
+                    # Check food
                     if (abs(new_head[0] - self.food_pos[0]) < self.grid_size and
                         abs(new_head[1] - self.food_pos[1]) < self.grid_size):
-                        # Grow and respawn food
-                        self.snake.append(self.snake[-1])  # duplicate last
-                        self.food_pos = (random.randint(1, 8)*self.grid_size,
-                                         random.randint(1, 15)*self.grid_size)
-                        self.food_color = random.choice(["red", "green", "blue", "yellow", "cyan", "magenta", "white"])
+                        self.score += 1
+                        self.log(f"Score: {self.score}")
+                        self.spawn_food()
+                    else:
+                        self.snake.pop()
+
                 self.redraw()
             except Exception as e:
-                self.log(f"Loop error: {e}")
+                self.log(f"Loop exception: {e}")
                 self.log(traceback.format_exc())
 
     def redraw(self):
         try:
-            self.debug_label.text = f"State:{self.state} W:{self.canvas_width} H:{self.canvas_height}"
+            self.debug_label.text = f"State:{self.state} W:{self.canvas_width} H:{self.canvas_height} Score:{self.score}"
 
             # Clear with black
             with self.canvas.fill(color="black"):
                 self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
             if self.state == "MENU":
-                # Draw a simple menu: just two colored rectangles
+                # Simple menu: blue background
                 with self.canvas.fill(color="blue"):
-                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height/2)
-                with self.canvas.fill(color="darkblue"):
-                    self.canvas.rect(0, self.canvas_height/2, self.canvas_width, self.canvas_height/2)
-                # No text
-            else:  # PLAY
-                # Background green
+                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+                # We'll skip text for now
+
+            elif self.state == "PLAY":
+                # Dark green background
                 with self.canvas.fill(color="darkgreen"):
                     self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
 
-                # Draw food
-                with self.canvas.fill(color=self.food_color):
+                # Draw food (red)
+                with self.canvas.fill(color="red"):
                     self.canvas.rect(self.food_pos[0], self.food_pos[1],
                                      self.grid_size, self.grid_size)
 
-                # Draw snake (just fill, no stroke)
-                for segment in self.snake:
+                # Draw snake (yellow)
+                for seg in self.snake:
                     with self.canvas.fill(color="yellow"):
-                        self.canvas.rect(segment[0], segment[1],
-                                         self.grid_size-2, self.grid_size-2)
+                        self.canvas.rect(seg[0], seg[1],
+                                         self.grid_size - 2, self.grid_size - 2)
 
+                # No text yet
+
+            elif self.state == "GAME_OVER":
+                # Red background
+                with self.canvas.fill(color="red"):
+                    self.canvas.rect(0, 0, self.canvas_width, self.canvas_height)
+                # No text yet
+
+            # Force redraw on iOS
             if self.platform == 'ios':
                 try:
                     from rubicon.objc import ObjCClass
@@ -151,7 +231,7 @@ class HungrySnake4K(toga.App):
                     pass
 
         except Exception as e:
-            self.log(f"redraw error: {e}")
+            self.log(f"redraw exception: {e}")
             self.log(traceback.format_exc())
             self.debug_label.text = f"ERROR: {str(e)[:50]}"
 
