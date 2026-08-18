@@ -5,6 +5,7 @@ from toga.style.pack import COLUMN
 import random
 import asyncio
 import traceback
+import os
 
 try:
     import pygame
@@ -29,11 +30,13 @@ class HungrySnake4K(toga.App):
             pass
         self.log("Startup: platform = " + self.platform)
 
-        self.grid_size = 40
+        # Game settings – faster & more responsive
+        self.grid_size = 30                # smaller = faster movement
         self.DEFAULT_WIDTH = 400
         self.DEFAULT_HEIGHT = 800
         self.canvas_width = self.DEFAULT_WIDTH
         self.canvas_height = self.DEFAULT_HEIGHT
+        self.move_delay = 0.025            # 40 FPS
 
         self.state = "MENU"
         self.snake = []
@@ -44,7 +47,7 @@ class HungrySnake4K(toga.App):
         self.touch_start = None
         self.last_touch = None
 
-        # ---------- UI first ----------
+        # UI (debug label first)
         self.canvas = toga.Canvas(
             style=Pack(flex=1, background_color="black"),
             on_resize=self.on_resize,
@@ -63,13 +66,12 @@ class HungrySnake4K(toga.App):
         self.main_window.content = box
         self.main_window.show()
 
-        # ---------- Now audio (safe) ----------
+        # Audio (now safe)
         self.audio_players = {}
         self.bg_player = None
         self.audio_loaded = False
-        self.init_audio()   # will update debug_label
+        self.init_audio()   # will set debug_label
 
-        # ---------- Start game ----------
         self.redraw()
         asyncio.create_task(self.game_loop(None))
         self.add_background_task(self.game_loop)
@@ -81,10 +83,9 @@ class HungrySnake4K(toga.App):
         except:
             pass
 
-    # ---------- Audio with flexible path ----------
+    # ---------- Audio with exhaustive path detection ----------
     def init_audio(self):
         try:
-            # Define audio files
             sfx_files = {
                 "food_blip": "food_blip.wav",
                 "game_over": "game_over.wav",
@@ -92,30 +93,37 @@ class HungrySnake4K(toga.App):
             }
             bg_file = "background_score.mp3"
 
-            # Try multiple possible locations
+            # Possible locations in the app bundle
             possible_locations = [
-                self.paths.app,                     # bundle root
-                self.paths.app / "assets",          # assets folder
-                self.paths.app / "Assets",          # alternative case
+                self.paths.app,                     # root
+                self.paths.app / "assets",          # typical
+                self.paths.app / "Assets",
+                self.paths.app / "Resources",
+                self.paths.app / "data",
             ]
 
             bg_path = None
             sfx_paths = {}
+
+            # Try each location and collect what we find
             for loc in possible_locations:
+                self.log(f"Checking: {loc}")
                 if (loc / bg_file).exists():
                     bg_path = loc / bg_file
+                    self.log(f"Found bg at {bg_path}")
                 for key, fname in sfx_files.items():
-                    if (loc / fname).exists():
-                        sfx_paths[key] = loc / fname
-                if bg_path or sfx_paths:
-                    break
+                    p = loc / fname
+                    if p.exists():
+                        sfx_paths[key] = p
+                        self.log(f"Found {key} at {p}")
 
+            # If nothing found, abort
             if not bg_path and not sfx_paths:
                 self.log("No audio files found")
-                self.debug_label.text = "Audio: none"
+                self.debug_label.text = "Audio: none found"
                 return
 
-            # Platform-specific loading
+            # Platform init
             if self.platform == 'ios':
                 from rubicon.objc import ObjCClass
                 from ctypes import cdll
@@ -133,9 +141,7 @@ class HungrySnake4K(toga.App):
                         self.bg_player.prepareToPlay()
                         self.log("iOS bg loaded")
                     else:
-                        self.log("iOS bg init failed")
-                else:
-                    self.log("iOS bg missing")
+                        self.log("iOS bg init failed (AVAudioPlayer returned nil)")
 
                 for key, path in sfx_paths.items():
                     url = NSURL.fileURLWithPath_(str(path))
@@ -145,6 +151,8 @@ class HungrySnake4K(toga.App):
                         player.prepareToPlay()
                         self.audio_players[key] = player
                         self.log(f"iOS SFX loaded: {key}")
+                    else:
+                        self.log(f"iOS SFX init failed: {key}")
 
             elif self.platform == 'android':
                 from java import jclass
@@ -183,6 +191,7 @@ class HungrySnake4K(toga.App):
 
             self.audio_loaded = True
             self.debug_label.text = "Audio: OK"
+            self.log("Audio init complete")
 
         except Exception as e:
             self.log(f"Audio init error: {e}")
@@ -265,7 +274,7 @@ class HungrySnake4K(toga.App):
             if self.food_pos not in self.snake:
                 break
 
-    # ---------- Touch handlers ----------
+    # ---------- Touch handlers (very responsive) ----------
     def on_touch_down(self, widget, x, y, **kwargs):
         self.touch_start = (x, y)
         self.last_touch = (x, y)
@@ -295,7 +304,8 @@ class HungrySnake4K(toga.App):
         dy = y - self.last_touch[1]
         self.last_touch = (x, y)
 
-        if abs(dx) < 10 and abs(dy) < 10:
+        # Ultra‑sensitive: change direction on even tiny movements
+        if abs(dx) < 5 and abs(dy) < 5:
             return
 
         if abs(dx) > abs(dy):
@@ -310,10 +320,10 @@ class HungrySnake4K(toga.App):
         self.touch_start = None
         self.last_touch = None
 
-    # ---------- Game loop ----------
+    # ---------- Game loop (40 FPS) ----------
     async def game_loop(self, widget):
         while True:
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(self.move_delay)
             try:
                 if self.state == "PLAY":
                     if self.next_dir:
